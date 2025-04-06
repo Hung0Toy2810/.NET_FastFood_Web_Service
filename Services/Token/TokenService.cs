@@ -10,7 +10,6 @@ namespace LapTrinhWindows.Services
     {
         Task<string> GenerateTokenAsync(string id, string username, string role);
     }
-
     public class JwtTokenService : IJwtTokenService
     {
         private readonly IConfiguration _config;
@@ -26,12 +25,11 @@ namespace LapTrinhWindows.Services
             {
                 throw new ArgumentException("Id, username và role không được để trống");
             }
-
             var claims = new[]
             {
-                new Claim("id", id),
-                new Claim("username", username),
-                new Claim("role", role)
+                new Claim(ClaimTypes.NameIdentifier, id),
+                new Claim(ClaimTypes.Name, username),
+                new Claim(ClaimTypes.Role, role)
             };
 
             var jwtKey = _config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is not configured.");
@@ -42,10 +40,9 @@ namespace LapTrinhWindows.Services
                 issuer: _config["Jwt:Issuer"],
                 audience: _config["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.UtcNow.AddHours(2), // Token hiệu dụng trong 2 giờ
+                expires: DateTime.UtcNow.AddHours(2),
                 signingCredentials: creds
             );
-
             return Task.FromResult(new JwtSecurityTokenHandler().WriteToken(token));
         }
     }

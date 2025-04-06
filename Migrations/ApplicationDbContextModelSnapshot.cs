@@ -75,6 +75,10 @@ namespace LapTrinhWindows.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<bool>("Status")
+                        .HasMaxLength(100)
+                        .HasColumnType("bit");
+
                     b.HasKey("CustomerID");
 
                     b.HasIndex("PhoneNumber")
@@ -89,6 +93,9 @@ namespace LapTrinhWindows.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<bool>("AccountStatus")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Address")
                         .IsRequired()

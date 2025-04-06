@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LapTrinhWindows.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250403224812_DBMigrations")]
-    partial class DBMigrations
+    [Migration("20250406010633_FastfoodDb")]
+    partial class FastfoodDb
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -78,6 +78,10 @@ namespace LapTrinhWindows.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<bool>("Status")
+                        .HasMaxLength(100)
+                        .HasColumnType("bit");
+
                     b.HasKey("CustomerID");
 
                     b.HasIndex("PhoneNumber")
@@ -92,6 +96,9 @@ namespace LapTrinhWindows.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<bool>("AccountStatus")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Address")
                         .IsRequired()

@@ -38,6 +38,9 @@ namespace LapTrinhWindows.Models
         // status online/offline
         [Required]
         public EmployeeStatus Status { get; set; }
+        // account status
+        [Required]
+        public bool AccountStatus { get; set; } = true;
 
         public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
         

@@ -20,6 +20,9 @@ namespace LapTrinhWindows.Models
         [Required]
         [MaxLength(100)]
         public string HashPassword { get; set; } = string.Empty;
+        [Required]
+        [MaxLength(100)]
+        public bool Status { get; set; } = true;
 
         [Required]
         [MaxLength(100)]

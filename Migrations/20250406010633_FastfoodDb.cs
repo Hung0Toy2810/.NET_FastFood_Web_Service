@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace LapTrinhWindows.Migrations
 {
     /// <inheritdoc />
-    public partial class DBMigrations : Migration
+    public partial class FastfoodDb : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -33,6 +33,7 @@ namespace LapTrinhWindows.Migrations
                     Address = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     PhoneNumber = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     HashPassword = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Status = table.Column<bool>(type: "bit", maxLength: 100, nullable: false),
                     AvtKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
                 },
                 constraints: table =>
@@ -89,7 +90,8 @@ namespace LapTrinhWindows.Migrations
                     HashPassword = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     RoleID = table.Column<int>(type: "int", nullable: false),
                     AvtKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    Status = table.Column<int>(type: "int", nullable: false)
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    AccountStatus = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {

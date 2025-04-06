@@ -21,13 +21,13 @@ namespace LapTrinhWindows.Middleware
                 {
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
-                        ValidateIssuer = true, 
-                        ValidateAudience = true, 
-                        ValidateLifetime = true, 
-                        ValidateIssuerSigningKey = true, 
-                        ValidIssuer = config["Jwt:Issuer"], 
-                        ValidAudience = config["Jwt:Audience"], 
-                        IssuerSigningKey = key 
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = config["Jwt:Issuer"],
+                        ValidAudience = config["Jwt:Audience"],
+                        IssuerSigningKey = key
                     };
 
                     options.Events = new JwtBearerEvents
@@ -35,48 +35,33 @@ namespace LapTrinhWindows.Middleware
                         OnAuthenticationFailed = context =>
                         {
                             Console.WriteLine("OnAuthenticationFailed: " + context.Exception.Message);
-
-                            // Ném ngoại lệ SecurityTokenException để ExceptionHandlingMiddleware xử lý
                             throw new SecurityTokenException("Authentication failed: " + context.Exception.Message);
                         },
-                        OnTokenValidated = async context =>
+                        OnTokenValidated = context =>
                         {
-                            Console.WriteLine("OnTokenValidated: Checking policy");
+                            Console.WriteLine("OnTokenValidated: Token validated successfully");
                             var user = context.Principal;
-                            var authService = context.HttpContext.RequestServices.GetRequiredService<IAuthorizationService>();
                             if (user == null)
                             {
                                 context.Fail("Access denied. User information is missing.");
-                                return;
                             }
-
-                            var policyResult = await authService.AuthorizeAsync(user, null, "ManagerOnly"); 
-
-                            if (!policyResult.Succeeded)
-                            {
-                                Console.WriteLine("Policy failed: Throwing UnauthorizedAccessException");
-                                context.Fail("Access denied. You do not have the required permissions.");
-                            }
+                            return Task.CompletedTask; // Đảm bảo trả về Task
                         },
                         OnChallenge = context =>
                         {
                             Console.WriteLine("OnChallenge is running");
-
-                            // Ngăn phản hồi mặc định
                             context.HandleResponse();
-
-                            
                             throw new UnauthorizedAccessException("Access denied. You do not have the required permissions.");
                         }
                     };
                 });
 
-            
+            // Cấu hình các policy phân quyền
             services.AddAuthorization(options =>
             {
-                options.AddPolicy("ManagerOnly", policy => policy.RequireRole("Manager")); 
-                options.AddPolicy("CustomerOnly", policy => policy.RequireRole("Customer")); 
-                options.AddPolicy("EmployeeOnly", policy => policy.RequireRole("Employee")); 
+                options.AddPolicy("ManagerOnly", policy => policy.RequireRole("Manager"));
+                options.AddPolicy("CustomerOnly", policy => policy.RequireRole("Customer"));
+                options.AddPolicy("EmployeeOnly", policy => policy.RequireRole("Employee"));
             });
 
             return services;
