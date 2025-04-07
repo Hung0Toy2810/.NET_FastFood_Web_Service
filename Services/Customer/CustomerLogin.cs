@@ -34,6 +34,8 @@ namespace LapTrinhWindows.Services
             var customer = await _customerRepository.GetCustomerByPhoneNumberAsync(phoneNumber);
             if (customer == null)
                 return null; 
+            if(customer.Status == false)
+                throw new UnauthorizedAccessException("Account is deleted");
             if (!_passwordHasher.VerifyPassword(password, customer.HashPassword))
                 throw new UnauthorizedAccessException("Invalid password"); 
 

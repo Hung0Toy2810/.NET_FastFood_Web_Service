@@ -1,13 +1,13 @@
 namespace LapTrinhWindows.Services
 {
-    // Interface cho việc hash mật khẩu
+    
     public interface IPasswordHasher
     {
         string HashPassword(string password);
-        bool VerifyPassword(string password, string hashedPassword); // Thêm để kiểm tra sau này
+        bool VerifyPassword(string password, string hashedPassword); 
     }
 
-    // Implementation dùng BCrypt
+    
     public class BCryptPasswordHasher : IPasswordHasher
     {
         public string HashPassword(string password)

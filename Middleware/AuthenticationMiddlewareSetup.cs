@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using StackExchange.Redis;
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 
 namespace LapTrinhWindows.Middleware
@@ -37,15 +39,24 @@ namespace LapTrinhWindows.Middleware
                             Console.WriteLine("OnAuthenticationFailed: " + context.Exception.Message);
                             throw new SecurityTokenException("Authentication failed: " + context.Exception.Message);
                         },
-                        OnTokenValidated = context =>
+                        OnTokenValidated = async context =>
                         {
                             Console.WriteLine("OnTokenValidated: Token validated successfully");
                             var user = context.Principal;
                             if (user == null)
                             {
                                 context.Fail("Access denied. User information is missing.");
+                                return;
                             }
-                            return Task.CompletedTask; // Đảm bảo trả về Task
+
+                            // Kiểm tra token trong Redis
+                            var redis = context.HttpContext.RequestServices.GetRequiredService<IConnectionMultiplexer>();
+                            var db = redis.GetDatabase();
+                            var token = context.SecurityToken as JwtSecurityToken;
+                            if (token != null && await db.KeyExistsAsync($"revoked:{token.RawData}"))
+                            {
+                                context.Fail("Token has been revoked.");
+                            }
                         },
                         OnChallenge = context =>
                         {

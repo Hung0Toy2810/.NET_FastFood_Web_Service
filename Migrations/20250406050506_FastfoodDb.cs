@@ -34,7 +34,8 @@ namespace LapTrinhWindows.Migrations
                     PhoneNumber = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     HashPassword = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Status = table.Column<bool>(type: "bit", maxLength: 100, nullable: false),
-                    AvtKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
+                    AvtKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Point = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {

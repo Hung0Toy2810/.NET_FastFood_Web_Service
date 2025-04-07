@@ -11,7 +11,7 @@ namespace LapTrinhWindows.Models
         [Required]
         public int CategoryID { get; set; }
         [ForeignKey("CategoryID")]
-        public Category Category { get; set; } = null!;
+        public virtual Category Category { get; set; } = null!;
         [Required]
         public double Price { get; set; }
         [Required]

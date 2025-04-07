@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LapTrinhWindows.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250406010633_FastfoodDb")]
+    [Migration("20250406050506_FastfoodDb")]
     partial class FastfoodDb
     {
         /// <inheritdoc />
@@ -77,6 +77,9 @@ namespace LapTrinhWindows.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Point")
+                        .HasColumnType("int");
 
                     b.Property<bool>("Status")
                         .HasMaxLength(100)

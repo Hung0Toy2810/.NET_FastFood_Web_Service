@@ -1,5 +1,6 @@
 using LapTrinhWindows.Middleware;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Proxies;
 using LapTrinhWindows.Services;
 using LapTrinhWindows.Repositories.CustomerRepository;
 using LapTrinhWindows.Services.DbContextFactory;
@@ -21,6 +22,10 @@ namespace LapTrinhWindows
 
                     services.AddDbContext<ApplicationDbContext>(options =>
                         options.UseSqlServer(connectionString));
+                    // use lazyloading
+                    services.AddDbContext<ApplicationDbContext>(options =>
+                        options.UseLazyLoadingProxies()
+                               .UseSqlServer(connectionString));
 
                     services.AddControllers()
                         .AddApplicationPart(typeof(Program).Assembly);

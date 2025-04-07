@@ -16,9 +16,9 @@ namespace LapTrinhWindows.Models
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            // Employee 1-n EmployeeRole
+            // Employeerole 1-n Employee
             modelBuilder.Entity<Employee>().HasOne(e => e.EmployeeRole).WithMany(r => r.Employees).HasForeignKey(e => e.RoleID).OnDelete(DeleteBehavior.Restrict);
-            // Invoice 1-n Employee, 1-n Customer
+            // Employee 1-n Invoice
             modelBuilder.Entity<Invoice>().HasOne(i => i.Employee).WithMany(e => e.Invoices).HasForeignKey(i => i.EmployeeID).OnDelete(DeleteBehavior.Restrict);
             // Customer 1-n Invoice
             modelBuilder.Entity<Invoice>().HasOne(i => i.Customer).WithMany(c => c.Invoices).HasForeignKey(i => i.CustomerID).OnDelete(DeleteBehavior.Restrict);

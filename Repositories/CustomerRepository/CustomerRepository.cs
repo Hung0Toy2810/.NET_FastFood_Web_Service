@@ -56,33 +56,52 @@ namespace LapTrinhWindows.Repositories.CustomerRepository
         {
             if (customer == null) throw new ArgumentNullException(nameof(customer));
 
-            var existingCustomer = await _context.Customers.FindAsync(customer.CustomerID);
-            if (existingCustomer == null) throw new InvalidOperationException($"Customer with ID '{customer.CustomerID}' not found.");
-
-            existingCustomer.CustomerName = customer.CustomerName;
-            existingCustomer.Address = customer.Address;
-            existingCustomer.PhoneNumber = customer.PhoneNumber;
-            
-
-            _context.Customers.Update(existingCustomer);
+            _context.Customers.Update(customer);
             await _context.SaveChangesAsync();
         }
         public async Task DeleteCustomerAsync(Guid customerId)
         {
-            var customer = await _context.Customers.FindAsync(customerId);
-            if (customer == null) throw new InvalidOperationException($"Customer with ID '{customerId}' not found.");
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            
+            try
+            {
+                var customer = await _context.Customers.FindAsync(customerId);
+                if (customer == null)
+                    throw new InvalidOperationException($"Customer with ID '{customerId}' not found.");
 
-            _context.Customers.Remove(customer);
-            await _context.SaveChangesAsync();
+                _context.Customers.Remove(customer);
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
+
         public async Task ChangeCustomerStatusAsync(Guid customerId, bool status)
         {
-            var customer = await _context.Customers.FindAsync(customerId);
-            if (customer == null) throw new InvalidOperationException($"Customer with ID '{customerId}' not found.");
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            
+            try
+            {
+                var customer = await _context.Customers.FindAsync(customerId);
+                if (customer == null) 
+                    throw new InvalidOperationException($"Customer with ID '{customerId}' not found.");
 
-            customer.Status = status;
-            _context.Customers.Update(customer);
-            await _context.SaveChangesAsync();
+                customer.Status = status;
+                _context.Customers.Update(customer);
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
         public async Task<Customer?> GetCustomerByIdAsync(Guid customerId)
         {

@@ -173,3 +173,4 @@
 /Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/System.IO.Hashing.dll
 /Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/System.Reactive.dll
 /Users/luongnguyenthanhhung/Documents/LapTrinhWindows/obj/Debug/net9.0/LapTrinhWindows.sourcelink.json
+/Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/SixLabors.ImageSharp.dll

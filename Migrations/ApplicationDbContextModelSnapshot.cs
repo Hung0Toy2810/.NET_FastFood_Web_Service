@@ -75,6 +75,9 @@ namespace LapTrinhWindows.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("Point")
+                        .HasColumnType("int");
+
                     b.Property<bool>("Status")
                         .HasMaxLength(100)
                         .HasColumnType("bit");
