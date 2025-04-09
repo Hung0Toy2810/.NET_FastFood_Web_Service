@@ -8,7 +8,7 @@ namespace LapTrinhWindows.Models
         [Required]
         public Guid CustomerID { get; set; }
         [ForeignKey("CustomerID")]
-        public Customer Customer { get; set; } = null!;
+        public virtual Customer Customer { get; set; } = null!;
         [Required]
         [MaxLength(100)]
         public string GiftPromotionName { get; set; } = string.Empty;
@@ -19,7 +19,7 @@ namespace LapTrinhWindows.Models
         [Required]
         public GiftPromotionStatus Status { get; set; }
         [ForeignKey("ProductID")]
-        public Product Product { get; set; } = null!;
+        public virtual Product Product { get; set; } = null!;
         //start day
         [Required]
         public DateTime StartDate { get; set; }

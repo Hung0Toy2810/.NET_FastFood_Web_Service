@@ -30,7 +30,7 @@ namespace LapTrinhWindows.Models
         public int RoleID { get; set; }
 
         [ForeignKey("RoleID")]
-        public EmployeeRole EmployeeRole { get; set; } = null!;
+        public virtual EmployeeRole EmployeeRole { get; set; } = null!;
         // AvtUrl
         [Required]
         [MaxLength(100)]
@@ -42,7 +42,7 @@ namespace LapTrinhWindows.Models
         [Required]
         public bool AccountStatus { get; set; } = true;
 
-        public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
+        public virtual ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
         
     }
     public enum EmployeeStatus

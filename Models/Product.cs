@@ -18,12 +18,11 @@ namespace LapTrinhWindows.Models
         public int AvailableQuantity { get; set; }
         [Required]
         public double Discount { get; set; }
-        //ImageUrl
         [MaxLength(100)]
         public string ImageKey { get; set; } = "default.jpg";
 
-        public ICollection<InvoiceDetail> InvoiceDetails { get; set; } = new List<InvoiceDetail>();
-        public ICollection<GiftPromotion> GiftPromotions { get; set; } = new List<GiftPromotion>();
+        public virtual ICollection<InvoiceDetail> InvoiceDetails { get; set; } = new List<InvoiceDetail>();
+        public virtual ICollection<GiftPromotion> GiftPromotions { get; set; } = new List<GiftPromotion>();
 
     }
 }

@@ -12,11 +12,9 @@ namespace LapTrinhWindows.Middleware
     {
         public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration config)
         {
-            // Lấy khóa bí mật từ cấu hình
             var jwtKey = config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key không được để trống.");
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
-            // Cấu hình xác thực JWT
             services
                 .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -48,8 +46,8 @@ namespace LapTrinhWindows.Middleware
                                 context.Fail("Access denied. User information is missing.");
                                 return;
                             }
-
-                            // Kiểm tra token trong Redis
+                            // kiểm tra trong redis
+                            // nếu token đã bị thu hồi thì từ chối truy cập
                             var redis = context.HttpContext.RequestServices.GetRequiredService<IConnectionMultiplexer>();
                             var db = redis.GetDatabase();
                             var token = context.SecurityToken as JwtSecurityToken;
@@ -66,8 +64,6 @@ namespace LapTrinhWindows.Middleware
                         }
                     };
                 });
-
-            // Cấu hình các policy phân quyền
             services.AddAuthorization(options =>
             {
                 options.AddPolicy("ManagerOnly", policy => policy.RequireRole("Manager"));

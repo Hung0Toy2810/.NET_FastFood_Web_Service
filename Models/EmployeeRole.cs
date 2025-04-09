@@ -8,6 +8,6 @@ namespace LapTrinhWindows.Models
         [Required]
         [MaxLength(100)]
         public string RoleName { get; set; } = string.Empty;
-        public ICollection<Employee> Employees { get; set; } = new List<Employee>();
+        public virtual ICollection<Employee> Employees { get; set; } = new List<Employee>();
     }
 }

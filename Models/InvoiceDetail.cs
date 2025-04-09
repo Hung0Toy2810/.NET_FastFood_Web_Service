@@ -14,9 +14,9 @@ namespace LapTrinhWindows.Models
         [Required]
         public double Total { get; set; }
         [ForeignKey("InvoiceID")]
-        public  Invoice Invoice { get; set; } = null!;
+        public virtual  Invoice Invoice { get; set; } = null!;
         [ForeignKey("ProductID")]
-        public  Product Product { get; set; } = null!;
+        public virtual Product Product { get; set; } = null!;
     }
     
 }

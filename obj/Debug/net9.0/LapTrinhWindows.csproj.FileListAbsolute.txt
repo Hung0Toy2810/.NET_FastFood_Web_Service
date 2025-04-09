@@ -174,3 +174,7 @@
 /Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/System.Reactive.dll
 /Users/luongnguyenthanhhung/Documents/LapTrinhWindows/obj/Debug/net9.0/LapTrinhWindows.sourcelink.json
 /Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/SixLabors.ImageSharp.dll
+/Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/Castle.Core.dll
+/Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/Microsoft.EntityFrameworkCore.Proxies.dll
+/Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/Pipelines.Sockets.Unofficial.dll
+/Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/StackExchange.Redis.dll

@@ -30,7 +30,7 @@ namespace LapTrinhWindows.Models
         [Required]
         public int Point { get; set; } = 0;
 
-        public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
-        public ICollection<GiftPromotion> GiftPromotions { get; set; } = new List<GiftPromotion>();
+        public virtual ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
+        public virtual ICollection<GiftPromotion> GiftPromotions { get; set; } = new List<GiftPromotion>();
     }
 }

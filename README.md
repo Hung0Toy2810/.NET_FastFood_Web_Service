@@ -1,4 +1,3 @@
-# .NET_FastFood_Web_Service
 version: "3.8"
 
 services:
@@ -30,6 +29,19 @@ services:
     volumes:
       - minio_data:/data
 
+  redis:
+    image: redis:7.0
+    container_name: redis
+    command: ["redis-server", "--requirepass", "Admin"]
+    environment:
+      - REDIS_PASSWORD=Admin
+    ports:
+      - "6380:6379"
+    networks:
+      - backend
+    volumes:
+      - redis_data:/data
+
 networks:
   backend:
     driver: bridge
@@ -37,3 +49,4 @@ networks:
 volumes:
   sqlserver_data:
   minio_data:
+  redis_data:

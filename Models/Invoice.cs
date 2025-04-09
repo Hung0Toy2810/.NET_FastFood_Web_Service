@@ -20,9 +20,9 @@ namespace LapTrinhWindows.Models
         [Required]
         public double Total { get; set; }
         [ForeignKey("EmployeeID")]
-        public Employee Employee { get; set; } = null!;
+        public virtual Employee Employee { get; set; } = null!;
         [ForeignKey("CustomerID")]
-        public Customer Customer { get; set; } = null!;
+        public virtual Customer Customer { get; set; } = null!;
         //delivery address
         [Required]
         [MaxLength(100)]
@@ -37,7 +37,7 @@ namespace LapTrinhWindows.Models
         // 1->5
         [Range(1, 5)]
         public int Star { get; set; }
-        public ICollection<InvoiceDetail> InvoiceDetails { get; set; } = new List<InvoiceDetail>();
+        public virtual ICollection<InvoiceDetail> InvoiceDetails { get; set; } = new List<InvoiceDetail>();
     }
     public enum PaymentMethods
     {
