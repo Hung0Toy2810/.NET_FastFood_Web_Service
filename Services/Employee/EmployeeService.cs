@@ -114,6 +114,47 @@ namespace LapTrinhWindows.Services
                 throw;
             }
         }
+        public async Task<EmployeeProfileDTO> GetEmployeeProfileByIdAsync(Guid employeeId)
+        {
+            var employee = await _employeeRepository.GetEmployeeById(employeeId);
+            if (employee == null)
+            {
+                throw new KeyNotFoundException($"Employee with ID '{employeeId}' not found.");
+            }
+
+            string? avatarUrl = null;
+            if (!string.IsNullOrEmpty(employee.AvtKey) &&
+                !employee.AvtKey.StartsWith("https://www.gravatar.com"))
+            {
+                try
+                {
+                    avatarUrl = await _fileService.GetPresignedUrlAsync(
+                        CustomerBucketName, 
+                        employee.AvtKey, 
+                        TimeSpan.FromHours(1) // URL có hiệu lực trong 1 giờ
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to generate presigned URL for employee {EmployeeId} with AvtKey {AvtKey}", 
+                        employeeId, employee.AvtKey);
+                    throw new InvalidOperationException("Failed to generate presigned URL for employee avatar.", ex);
+                }
+            }
+
+            var profile = new EmployeeProfileDTO
+            {
+                FullName = employee.FullName,
+                Address = employee.Address,
+                PhoneNumber = employee.PhoneNumber,
+                Email = employee.Email,
+                RoleName = employee.EmployeeRole?.RoleName, // Lấy tên vai trò nếu có
+                AvatarUrl = avatarUrl,
+                Status = employee.Status
+            };
+
+            return profile;
+        }
         private async Task<bool> IsImageAsync(IFormFile file)
         {
             if (file == null || file.Length == 0) return false;

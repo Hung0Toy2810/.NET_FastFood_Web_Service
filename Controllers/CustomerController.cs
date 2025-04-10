@@ -28,14 +28,43 @@ public class CustomersController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDTO dto)
     {
-        var token = await _customerLoginService.LoginAsync(dto.PhoneNumber, dto.Password);
-        return Ok(new { token });
+        try
+        {
+            // Lấy IP từ HttpContext (bắt buộc)
+            var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+            if (string.IsNullOrEmpty(clientIp))
+                return BadRequest("Cannot determine client IP.");
+
+            // Gọi LoginAsync với IP bắt buộc
+            var result = await _customerLoginService.LoginAsync(dto.PhoneNumber, dto.Password, clientIp);
+            if (result == null)
+                return NotFound("Customer not found");
+
+            // Trả về cả Access Token, Refresh Token và ExpiresIn
+            return Ok(new
+            {
+                token = result.AccessToken,        // Giữ key "token" để tương thích cũ
+                refreshToken = result.RefreshToken,
+                expiresIn = result.ExpiresIn
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
-    [Authorize(Policy = "CustomerOnly")]
+    [Authorize(Roles = "Customer")]
     [HttpGet("profile")]
     public async Task<IActionResult> GetProfile()
     {
+        var claims = User.Claims.Select(c => $"{c.Type}: {c.Value}");
+        Console.WriteLine("User claims in endpoint: " + string.Join(", ", claims));
+
         var customerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (customerId == null)
         {
