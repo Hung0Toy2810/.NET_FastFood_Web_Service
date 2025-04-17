@@ -1,66 +1,67 @@
 using LapTrinhWindows.Models;
-using LapTrinhWindows.Repositories.CustomerRepository;
+using LapTrinhWindows.Repositories.EmployeeRepository;
 using System.Security.Claims;
 
 namespace LapTrinhWindows.Services
 {
     // Cập nhật interface để trả về đối tượng chứa cả hai token
-    public interface ICustomerLoginService
+    public interface IEmployeeLoginService
     {
-        Task<LoginResult?> LoginAsync(string phoneNumber, string password, string clientIp); // Xóa '?'
+        Task<EmployeeLoginResult?> LoginAsync(string email, string password, string clientIp);
     }
 
-    public class LoginResult
+    public class EmployeeLoginResult
     {
         public required string AccessToken { get; set; }
         public required string RefreshToken { get; set; }
-         
+        public int ExpiresIn { get; set; } 
     }
 
-    public class CustomerLoginService : ICustomerLoginService
+    public class EmployeeLoginService : IEmployeeLoginService
     {
-        private readonly ICustomerRepository _customerRepository;
+        private readonly IEmployeeRepository _employeeRepository;
         private readonly IPasswordHasher _passwordHasher;
         private readonly IJwtTokenService _jwtTokenService;
 
-        public CustomerLoginService(
-            ICustomerRepository customerRepository,
+        public EmployeeLoginService(
+            IEmployeeRepository employeeRepository,
             IPasswordHasher passwordHasher,
             IJwtTokenService jwtTokenService)
         {
-            _customerRepository = customerRepository ?? throw new ArgumentNullException(nameof(customerRepository));
+            _employeeRepository = employeeRepository ?? throw new ArgumentNullException(nameof(employeeRepository));
             _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
             _jwtTokenService = jwtTokenService ?? throw new ArgumentNullException(nameof(jwtTokenService));
         }
 
-        public async Task<LoginResult?> LoginAsync(string phoneNumber, string password, string clientIp)
+        public async Task<EmployeeLoginResult?> LoginAsync(string email, string password, string clientIp)
         {
-            if (string.IsNullOrWhiteSpace(phoneNumber))
-                throw new ArgumentException("Phone number cannot be empty", nameof(phoneNumber));
+            if (string.IsNullOrWhiteSpace(email))
+                throw new ArgumentException("Email cannot be empty", nameof(email));
             if (string.IsNullOrWhiteSpace(password))
                 throw new ArgumentException("Password cannot be empty", nameof(password));
             if (string.IsNullOrWhiteSpace(clientIp))
                 throw new ArgumentException("Client IP cannot be empty", nameof(clientIp));
 
-            var customer = await _customerRepository.GetCustomerByPhoneNumberAsync(phoneNumber);
-            if (customer == null)
+            var employee = await _employeeRepository.GetEmployeeByEmailNumberAsync(email);
+            if (employee == null)
                 return null;
-            if (customer.Status == false)
-                throw new UnauthorizedAccessException("Account is deleted");
-            if (!_passwordHasher.VerifyPassword(password, customer.HashPassword))
+            if (!employee.AccountStatus)
+                throw new UnauthorizedAccessException("Account is inactive");
+            if (!_passwordHasher.VerifyPassword(password, employee.HashPassword))
                 throw new UnauthorizedAccessException("Invalid password");
 
             var (accessToken, refreshToken) = await _jwtTokenService.GenerateTokensAsync(
-                customer.CustomerID.ToString(),
-                customer.CustomerName,
-                "Customer",
+                employee.EmployeeID.ToString(),
+                employee.FullName,
+                employee.EmployeeRole.RoleName,
                 clientIp
             );
 
-            return new LoginResult
+            return new EmployeeLoginResult
             {
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
+                ExpiresIn = 900 // 15 minutes in seconds
             };
         }
     }

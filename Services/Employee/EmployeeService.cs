@@ -7,6 +7,7 @@ using LapTrinhWindows.Services.Minio;
 using System.Text.RegularExpressions;
 using LapTrinhWindows.Models.dto.EmployeeDTO;
 using System.Transactions;
+
 namespace LapTrinhWindows.Services
 {
     // interface 
@@ -14,6 +15,23 @@ namespace LapTrinhWindows.Services
     {
         // create employee
         Task<Employee> AddEmployeeAsync(CreateEmployeeDTO dto);
+        Task<EmployeeProfileDTO> GetEmployeeProfileByIdAsync(Guid employeeId);
+        //update employee profile
+        Task UpdateEmployeeProfileAsync(Guid employeeId, UpdateEmployeeProfileDTO dto);
+        // change password
+        Task UpdateEmployeePasswordAsync(Guid employeeId, string oldPassword, string newPassword);
+        // change avt
+        Task UpdateEmployeeAvtAsync(Guid employeeId, IFormFile avtFile);
+        //update employee status
+        Task ChangeEmployeeStatusAsync(Guid employeeId, bool status);
+        Task UnactiveEmployeeAsync(Guid employeeId);
+        Task ActiveEmployeeAsync(Guid employeeId);
+        // delete employee
+        Task DeleteEmployeeAsync(Guid employeeId);
+        // search employee
+        //Task<List<EmployeeProfileDTO>> SearchEmployeesAsync(string searchTerm);
+        //login service
+
     }
     public class EmployeeService : IEmployeeService
     {
@@ -25,7 +43,7 @@ namespace LapTrinhWindows.Services
         private const string CustomerBucketName = "customer-avatars";
 
         public EmployeeService(
-            EmployeeRepository employeeRepository,
+            IEmployeeRepository employeeRepository,
             ApplicationDbContext context,
             IPasswordHasher passwordHasher,
             IFileService fileService,
@@ -58,7 +76,7 @@ namespace LapTrinhWindows.Services
             string avtKey = dto.AvtKey;
             if (dto.AvtFile != null && dto.AvtFile.Length > 0)
             {
-                // Kiểm tra xem file có phải là hình ảnh không
+                
                 if (!await IsImageAsync(dto.AvtFile))
                 {
                     throw new ArgumentException("Avatar file must be an image (JPEG, PNG, GIF, etc.).", nameof(dto.AvtFile));
@@ -84,13 +102,13 @@ namespace LapTrinhWindows.Services
                 RoleID = dto.RoleID,
                 AvtKey = avtKey,
                 Status = dto.Status,
-                AccountStatus = true // Mặc định là true
+                AccountStatus = true 
             };
 
             await using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                await _employeeRepository.AddEmployee(employee);
+                await _employeeRepository.AddEmployeeAsync(employee);
                 await transaction.CommitAsync();
                 return employee;
             }
@@ -111,12 +129,12 @@ namespace LapTrinhWindows.Services
                         throw new InvalidOperationException("Rollback failed after an error occurred.", rollbackEx);
                     }
                 }
-                throw;
+                throw new InvalidOperationException("Failed to add employee.");
             }
         }
         public async Task<EmployeeProfileDTO> GetEmployeeProfileByIdAsync(Guid employeeId)
         {
-            var employee = await _employeeRepository.GetEmployeeById(employeeId);
+            var employee = await _employeeRepository.GetEmployeeByIdAsync(employeeId);
             if (employee == null)
             {
                 throw new KeyNotFoundException($"Employee with ID '{employeeId}' not found.");
@@ -131,7 +149,7 @@ namespace LapTrinhWindows.Services
                     avatarUrl = await _fileService.GetPresignedUrlAsync(
                         CustomerBucketName, 
                         employee.AvtKey, 
-                        TimeSpan.FromHours(1) // URL có hiệu lực trong 1 giờ
+                        TimeSpan.FromHours(1) 
                     );
                 }
                 catch (Exception ex)
@@ -148,7 +166,7 @@ namespace LapTrinhWindows.Services
                 Address = employee.Address,
                 PhoneNumber = employee.PhoneNumber,
                 Email = employee.Email,
-                RoleName = employee.EmployeeRole?.RoleName, // Lấy tên vai trò nếu có
+                RoleName = employee.EmployeeRole?.RoleName, 
                 AvatarUrl = avatarUrl,
                 Status = employee.Status
             };
@@ -189,5 +207,294 @@ namespace LapTrinhWindows.Services
             var passwordRegex = new Regex(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$");
             return passwordRegex.IsMatch(password);
         }
+        public async Task UpdateEmployeeProfileAsync(Guid employeeId, UpdateEmployeeProfileDTO dto)
+        {
+            if (dto == null)
+                throw new ArgumentNullException(nameof(dto), "UpdateEmployeeProfileDTO is null");
+
+            if (string.IsNullOrWhiteSpace(dto.EmployeeName))
+                throw new ArgumentException("Employee name cannot be empty", nameof(dto.EmployeeName));
+
+            if (string.IsNullOrWhiteSpace(dto.Address))
+                throw new ArgumentException("Address cannot be empty", nameof(dto.Address));
+
+            if (string.IsNullOrWhiteSpace(dto.PhoneNumber))
+                throw new ArgumentException("Phone number cannot be empty", nameof(dto.PhoneNumber));
+
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                throw new ArgumentException("Email cannot be empty", nameof(dto.Email));
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var employee = await _employeeRepository.GetEmployeeByIdAsync(employeeId);
+                if (employee == null)
+                    throw new KeyNotFoundException($"Employee with ID '{employeeId}' not found.");
+
+                employee.FullName = dto.EmployeeName;
+                employee.Address = dto.Address;
+                employee.PhoneNumber = dto.PhoneNumber;
+                employee.Email = dto.Email;
+
+                var result = await _employeeRepository.UpdateEmployeeAsync(employee);
+                if (!result)
+                    throw new InvalidOperationException("Failed to update employee profile.");
+
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("Employee profile updated successfully for employee {EmployeeId}", employeeId);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Failed to update employee profile for employee {EmployeeId}", employeeId);
+                throw;
+            }
+        }
+
+        public async Task UpdateEmployeePasswordAsync(Guid employeeId, string oldPassword, string newPassword)
+        {
+            if (string.IsNullOrWhiteSpace(oldPassword))
+                throw new ArgumentException("Old password cannot be empty", nameof(oldPassword));
+
+            if (string.IsNullOrWhiteSpace(newPassword))
+                throw new ArgumentException("New password cannot be empty", nameof(newPassword));
+
+            if (newPassword == oldPassword)
+                throw new ArgumentException("New password cannot be the same as old password", nameof(newPassword));
+
+            if (!IsPasswordStrong(newPassword))
+            {
+                throw new ArgumentException("New password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, and one number.", nameof(newPassword));
+            }
+            var employee = await _employeeRepository.GetEmployeeByIdAsync(employeeId);
+            if (employee == null)
+                throw new KeyNotFoundException($"Employee with ID '{employeeId}' not found.");
+
+            if (!_passwordHasher.VerifyPassword(oldPassword, employee.HashPassword))
+                throw new UnauthorizedAccessException("Old password is incorrect.");
+
+            var newHashPassword = _passwordHasher.HashPassword(newPassword);
+
+            await _employeeRepository.UpdateEmployeePasswordAsync(employeeId, newHashPassword);
+
+            _logger.LogInformation("Password updated successfully for employee {EmployeeId}", employeeId);
+        }
+        public async Task ChangeEmployeeStatusAsync(Guid employeeId, bool status)
+        {
+            if (employeeId == Guid.Empty)
+                throw new ArgumentException("Employee ID cannot be empty.", nameof(employeeId));
+
+            try 
+            {
+                await _employeeRepository.ChangeEmployeeStatusAsync(employeeId, status);
+                _logger.LogInformation("Employee status updated successfully for employee {EmployeeId}", employeeId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update status for employee {EmployeeId}", employeeId);
+                throw;
+            }
+        }
+        public async Task UnactiveEmployeeAsync(Guid employeeId)
+        {
+            if (employeeId == Guid.Empty)
+                throw new ArgumentException("Employee ID cannot be empty.", nameof(employeeId));
+
+            try 
+            {
+                await _employeeRepository.UnactiveEmployeeAsync(employeeId);
+                _logger.LogInformation("Employee account deactivated successfully for employee {EmployeeId}", employeeId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to deactivate account for employee {EmployeeId}", employeeId);
+                throw;
+            }
+        }
+
+        public async Task ActiveEmployeeAsync(Guid employeeId)
+        {
+            if (employeeId == Guid.Empty)
+                throw new ArgumentException("Employee ID cannot be empty.", nameof(employeeId));
+
+            try 
+            {
+                await _employeeRepository.ActiveEmployeeAsync(employeeId);
+                _logger.LogInformation("Employee account activated successfully for employee {EmployeeId}", employeeId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to activate account for employee {EmployeeId}", employeeId);
+                throw;
+            }
+        }
+        public async Task UpdateEmployeeAvtAsync(Guid employeeId, IFormFile avtFile)
+        {
+            if (avtFile == null || avtFile.Length == 0)
+                throw new ArgumentNullException(nameof(avtFile), "Avatar file is null or empty");
+
+            if (!await IsImageAsync(avtFile))
+                throw new ArgumentException("Avatar file must be an image (JPEG, PNG, GIF, etc.).", nameof(avtFile));
+
+            var employee = await _employeeRepository.GetEmployeeByIdAsync(employeeId);
+            if (employee == null)
+                throw new KeyNotFoundException($"Employee with ID '{employeeId}' not found.");
+
+            string oldAvtKey = employee.AvtKey;
+            string newAvtKey = string.Empty;
+            const long maxSize = 5 * 1024 * 1024; // 5MB
+
+            using var stream = avtFile.OpenReadStream();
+            newAvtKey = await _fileService.ConvertAndUploadAsJpgAsync(
+                stream,
+                CustomerBucketName,
+                $"{Guid.NewGuid()}.jpg",
+                maxSize
+            );
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                employee.AvtKey = newAvtKey;
+                var result = await _employeeRepository.UpdateEmployeeAsync(employee);
+                if (!result)
+                    throw new InvalidOperationException("Failed to update employee avatar.");
+
+                await transaction.CommitAsync();
+
+                // Delete old avatar if it exists and is not the default gravatar
+                if (!string.IsNullOrEmpty(oldAvtKey) && !oldAvtKey.StartsWith("https://www.gravatar.com"))
+                {
+                    try
+                    {
+                        await _fileService.DeleteFileAsync(CustomerBucketName, oldAvtKey);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to delete old avatar {OldAvtKey} after successful update", oldAvtKey);
+                    }
+                }
+
+                _logger.LogInformation("Avatar updated successfully for employee {EmployeeId}", employeeId);
+            }
+            catch (Exception ex)
+            {
+                if (transaction != null && transaction.GetDbTransaction().Connection != null)
+                {
+                    try
+                    {
+                        await transaction.RollbackAsync();
+                        _logger.LogInformation("Transaction rolled back due to error: {Error}", ex.Message);
+
+                        if (!string.IsNullOrEmpty(newAvtKey))
+                        {
+                            try
+                            {
+                                await _fileService.DeleteFileAsync(CustomerBucketName, newAvtKey);
+                                _logger.LogInformation("Deleted new avatar {NewAvtKey} during rollback", newAvtKey);
+                            }
+                            catch (Exception rollbackEx)
+                            {
+                                _logger.LogError(rollbackEx, "Failed to delete new avatar {NewAvtKey} during rollback", newAvtKey);
+                            }
+                        }
+
+                        employee.AvtKey = oldAvtKey;
+                    }
+                    catch (Exception rollbackEx)
+                    {
+                        throw new InvalidOperationException("Rollback failed after an error occurred.", rollbackEx);
+                    }
+                }
+                throw;
+            }
+        }
+        // delete employee and remove avt if all procedures are failed, rollback include avt
+        public async Task DeleteEmployeeAsync(Guid employeeId)
+        {
+            if (employeeId == Guid.Empty)
+                throw new ArgumentException("Employee ID cannot be empty.", nameof(employeeId));
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var employee = await _employeeRepository.GetEmployeeByIdAsync(employeeId);
+                if (employee == null)
+                    throw new KeyNotFoundException($"Employee with ID '{employeeId}' not found.");
+
+                string avtKey = employee.AvtKey;
+
+                // Delete from database first
+                var result = await _employeeRepository.DeleteEmployeeAsync(employee);
+                if (!result)
+                    throw new InvalidOperationException("Failed to delete employee from database.");
+
+                // If database deletion successful, try to delete avatar
+                if (!string.IsNullOrEmpty(avtKey) && !avtKey.StartsWith("https://www.gravatar.com"))
+                {
+                    try
+                    {
+                        await _fileService.DeleteFileAsync(CustomerBucketName, avtKey);
+                    }
+                    catch (Exception ex)
+                    {
+                        // If avatar deletion fails, rollback the database changes
+                        await transaction.RollbackAsync();
+                        _logger.LogError(ex, "Failed to delete avatar {AvtKey} for employee {EmployeeId}", avtKey, employeeId);
+                        throw new InvalidOperationException("Failed to delete employee avatar. Transaction rolled back.", ex);
+                    }
+                }
+
+                // If everything successful, commit the transaction
+                await transaction.CommitAsync();
+                _logger.LogInformation("Employee {EmployeeId} deleted successfully with avatar {AvtKey}", employeeId, avtKey);
+            }
+            catch (Exception ex)
+            {
+                // Rollback if any error occurs
+                if (transaction != null && transaction.GetDbTransaction().Connection != null)
+                {
+                    try
+                    {
+                        await transaction.RollbackAsync();
+                        _logger.LogInformation("Transaction rolled back due to error: {Error}", ex.Message);
+                    }
+                    catch (Exception rollbackEx)
+                    {
+                        throw new InvalidOperationException("Rollback failed after an error occurred.", rollbackEx);
+                    }
+                }
+                throw;
+            }
+        }
+        // public async Task<List<EmployeeProfileDTO>> SearchEmployeesAsync(string searchTerm)
+        // {
+        //     if (string.IsNullOrWhiteSpace(searchTerm))
+        //         throw new ArgumentException("Search term cannot be empty.", nameof(searchTerm));
+
+        //     try 
+        //     {
+        //         var employeeIds = await _employeeRepository.SearchEmployeesAsync(searchTerm);
+        //         var profiles = new List<EmployeeProfileDTO>();
+                
+        //         foreach(var id in employeeIds)
+        //         {
+        //             var profile = await GetEmployeeProfileByIdAsync(id);
+        //             profiles.Add(profile);
+        //         }
+
+        //         _logger.LogInformation("Found {Count} employees matching search term '{SearchTerm}'", 
+        //             profiles.Count, searchTerm);
+                
+        //         return profiles;
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         _logger.LogError(ex, "Error searching employees with term '{SearchTerm}'", searchTerm);
+        //         throw;
+        //     }
+        // }
+        
     }
 }

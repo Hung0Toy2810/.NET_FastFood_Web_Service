@@ -8,6 +8,8 @@ using LapTrinhWindows.Repositories.Minio;
 using LapTrinhWindows.Services.Minio;
 using StackExchange.Redis;
 using Microsoft.Extensions.Logging;
+using LapTrinhWindows.Repositories.EmployeeRepository;
+
 
 namespace LapTrinhWindows
 {
@@ -52,7 +54,7 @@ namespace LapTrinhWindows
                     services.AddLogging(builder =>
                     {
                         builder.AddConsole();
-                        builder.SetMinimumLevel(LogLevel.Information); // Phù hợp với appsettings.json
+                        builder.SetMinimumLevel(LogLevel.Information);
                     });
 
                     // Đăng ký các service
@@ -62,6 +64,9 @@ namespace LapTrinhWindows
                     services.AddScoped<ICustomerRepository, CustomerRepository>();
                     services.AddScoped<ICustomerService, CustomerService>();
                     services.AddScoped<ICustomerLoginService, CustomerLoginService>();
+                    services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+                    services.AddScoped<IEmployeeService, EmployeeService>();
+                    services.AddScoped<IEmployeeLoginService, EmployeeLoginService>();
 
                     // Cấu hình MinIO
                     services.AddSingleton<IMinioClient>(sp =>
@@ -76,8 +81,6 @@ namespace LapTrinhWindows
 
                     services.AddScoped<IFileRepository, MinioFileRepository>();
                     services.AddScoped<IFileService, FileService>();
-
-                    // Cấu hình xác thực JWT
                     services.AddJwtAuthentication(configuration);
                 })
                 .ConfigureWebHostDefaults(webBuilder =>
@@ -91,7 +94,7 @@ namespace LapTrinhWindows
                             Console.WriteLine("Request Headers: " + string.Join(", ", context.Request.Headers.Select(h => $"{h.Key}: {h.Value}")));
                             await next();
                         });
-                        // Thêm middleware giới hạn yêu cầu để chống spam/DDoS
+    
                         app.UseMiddleware<RateLimitMiddleware>();
 
                         app.UseAuthentication();

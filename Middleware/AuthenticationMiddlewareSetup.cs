@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using StackExchange.Redis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -13,9 +14,7 @@ namespace LapTrinhWindows.Middleware
         public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration config)
         {
             var jwtKey = config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key không được để trống.");
-            if (jwtKey.Length < 32) throw new InvalidOperationException("Jwt:Key phải dài ít nhất 32 ký tự.");
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-            Console.WriteLine("JWT Key in AuthenticationSetup: " + jwtKey); // Log để kiểm tra
 
             services
                 .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -31,67 +30,115 @@ namespace LapTrinhWindows.Middleware
                         ValidAudience = config["Jwt:Audience"],
                         IssuerSigningKey = key,
                         ClockSkew = TimeSpan.FromMinutes(5),
-                        RoleClaimType = ClaimTypes.Role,
-                        NameClaimType = ClaimTypes.Name
+                        RoleClaimType = ClaimTypes.Role
                     };
-
-                    options.RequireHttpsMetadata = false; // Dùng localhost
-                    options.SaveToken = true; // Lưu token
 
                     options.Events = new JwtBearerEvents
                     {
                         OnMessageReceived = context =>
                         {
-                            var authHeader = context.Request.Headers["Authorization"].ToString();
-                            Console.WriteLine("Auth Header: " + authHeader);
-
-                            if (string.IsNullOrEmpty(context.Token) && authHeader.StartsWith("Bearer "))
-                            {
-                                context.Token = authHeader.Substring("Bearer ".Length).Trim();
-                                Console.WriteLine("Manually set Token: " + context.Token);
-                            }
-
-                            Console.WriteLine("Extracted Token: " + context.Token);
                             if (string.IsNullOrEmpty(context.Token))
                             {
-                                Console.WriteLine("No token found in request");
+                                _logger.LogWarning("No token found in request");
                             }
                             return Task.CompletedTask;
                         },
-                        OnTokenValidated = context =>
+                        OnAuthenticationFailed = context =>
                         {
-                            Console.WriteLine("OnTokenValidated started");
+                            _logger.LogError("Authentication failed: {Message}", context.Exception.Message);
+                            throw new SecurityTokenException($"Authentication failed: {context.Exception.Message}");
+                        },
+                        OnTokenValidated = async context =>
+                        {
                             var token = context.SecurityToken as JwtSecurityToken;
                             if (token == null)
                             {
-                                Console.WriteLine("Token is invalid");
                                 var authHeader = context.Request.Headers["Authorization"].ToString();
-                                Console.WriteLine("Original Token from Header: " + authHeader);
+                                _logger.LogWarning("Invalid token format. Header: {AuthHeader}", authHeader);
                                 try
                                 {
                                     var handler = new JwtSecurityTokenHandler();
                                     var tokenToValidate = authHeader.StartsWith("Bearer ") ? authHeader.Substring("Bearer ".Length).Trim() : authHeader;
                                     var validatedToken = handler.ValidateToken(tokenToValidate, options.TokenValidationParameters, out var securityToken);
-                                    Console.WriteLine("Manual validation succeeded: " + securityToken);
-
-                                    // Gán thủ công SecurityToken và Principal
                                     context.SecurityToken = securityToken;
                                     context.Principal = validatedToken;
+                                    token = securityToken as JwtSecurityToken;
                                 }
                                 catch (Exception ex)
                                 {
-                                    Console.WriteLine("Manual validation failed: " + ex.Message);
+                                    _logger.LogError("Manual token validation failed: {Message}", ex.Message);
                                     context.Fail("Invalid token format.");
-                                    return Task.CompletedTask;
+                                    return;
                                 }
                             }
+
+                            var jti = token?.Claims?.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
+                            var userId = token?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+                            var clientIp = token?.Claims?.FirstOrDefault(c => c.Type == "client_ip")?.Value;
+
+                            if (string.IsNullOrEmpty(jti) || string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(clientIp))
+                            {
+                                _logger.LogWarning("Missing required claims. JTI: {Jti}, UserId: {UserId}, ClientIp: {ClientIp}", jti, userId, clientIp);
+                                context.Fail("Token is missing required claims.");
+                                return;
+                            }
+
+                            var redis = context.HttpContext.RequestServices.GetRequiredService<IConnectionMultiplexer>();
+                            var db = redis.GetDatabase();
+
+                            // Kiểm tra token có bị thu hồi không
+                            var isRevoked = await db.StringGetAsync($"revoked:{jti}");
+                            if (!string.IsNullOrEmpty(isRevoked) && isRevoked == "true")
+                            {
+                                _logger.LogWarning("Token with JTI {Jti} has been revoked", jti);
+                                context.Fail("Token has been revoked.");
+                                return;
+                            }
+
+                            // Kiểm tra thông tin phiên
+                            var sessionKey = $"session:{userId}";
+                            var sessionData = await db.StringGetAsync(sessionKey);
+                            if (string.IsNullOrEmpty(sessionData))
+                            {
+                                _logger.LogWarning("No session found for user {UserId}", userId);
+                                context.Fail("Session not found.");
+                                return;
+                            }
+
+                            var sessionParts = sessionData.ToString().Split('|');
+                            if (sessionParts.Length != 7 || sessionParts[0] != jti || sessionParts[2] != clientIp || sessionParts[3] != userId)
+                            {
+                                _logger.LogWarning("Session mismatch for user {UserId}. Expected JTI: {Jti}, IP: {ClientIp}, UserId: {UserId}. Found: {SessionData}", 
+                                    userId, jti, clientIp, userId, sessionData);
+                                context.Fail("Session data mismatch.");
+                                return;
+                            }
+
+                            // Kiểm tra thời gian phiên (7 ngày kể từ đăng nhập)
+                            if (!long.TryParse(sessionParts[6], out var loginTimestamp))
+                            {
+                                _logger.LogWarning("Invalid login timestamp for user {UserId}: {Timestamp}", userId, sessionParts[6]);
+                                context.Fail("Invalid session timestamp.");
+                                return;
+                            }
+
+                            var loginTime = DateTimeOffset.FromUnixTimeSeconds(loginTimestamp).UtcDateTime;
+                            var sessionDuration = DateTime.UtcNow - loginTime;
+                            if (sessionDuration.TotalDays > 7)
+                            {
+                                _logger.LogWarning("Session expired for user {UserId}. Login required.", userId);
+                                await db.KeyDeleteAsync(sessionKey);
+                                await db.KeyDeleteAsync($"refresh:{sessionParts[1]}");
+                                context.Fail("Session expired. Please log in again.");
+                                return;
+                            }
+
                             var claims = context.Principal?.Claims?.Select(c => $"{c.Type}: {c.Value}") ?? Enumerable.Empty<string>();
-                            Console.WriteLine("Claims: " + string.Join(", ", claims));
-                            return Task.CompletedTask;
+                            _logger.LogInformation("Token validated for user {UserId}. Claims: {Claims}", userId, string.Join(", ", claims));
                         },
                         OnChallenge = context =>
                         {
-                            Console.WriteLine("OnChallenge is running");
+                            _logger.LogWarning("Access denied for request. Reason: {ErrorDescription}", context.ErrorDescription);
                             context.HandleResponse();
                             throw new UnauthorizedAccessException("Access denied. You do not have the required permissions.");
                         }
@@ -100,5 +147,7 @@ namespace LapTrinhWindows.Middleware
 
             return services;
         }
+
+        private static readonly ILogger _logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger("JwtAuthentication");
     }
 }

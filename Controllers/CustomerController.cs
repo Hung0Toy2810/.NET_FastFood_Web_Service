@@ -2,6 +2,7 @@ using LapTrinhWindows.Services;
 using LapTrinhWindows.Models.dto.CustomerDTO;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using LapTrinhWindows.Models.dto;
 
 [ApiController]
 [Route("api/customers")]
@@ -9,22 +10,25 @@ public class CustomersController : ControllerBase
 {
     private readonly ICustomerService _customerService;
     private readonly ICustomerLoginService _customerLoginService;
+    private readonly IJwtTokenService _jwtTokenService;
 
     public CustomersController(
         ICustomerService customerService,
-        ICustomerLoginService customerLoginService)
+        ICustomerLoginService customerLoginService,
+        IJwtTokenService jwtTokenService)
     {
         _customerService = customerService ?? throw new ArgumentNullException(nameof(customerService));
         _customerLoginService = customerLoginService ?? throw new ArgumentNullException(nameof(customerLoginService));
+        _jwtTokenService = jwtTokenService ?? throw new ArgumentNullException(nameof(jwtTokenService));
     }
-
+    [AllowAnonymous]
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromForm] CreateCustomerDTO dto)
     {
         await _customerService.AddCustomerAsync(dto);
         return Ok("Customer registered successfully");
     }
-
+    [AllowAnonymous]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDTO dto)
     {
@@ -45,7 +49,6 @@ public class CustomersController : ControllerBase
             {
                 token = result.AccessToken,        // Giữ key "token" để tương thích cũ
                 refreshToken = result.RefreshToken,
-                expiresIn = result.ExpiresIn
             });
         }
         catch (UnauthorizedAccessException ex)
@@ -84,7 +87,7 @@ public class CustomersController : ControllerBase
 
         return Ok(profile);
     }
-    [Authorize(Policy = "CustomerOnly")]
+    [Authorize(Roles = "Customer")]
     [HttpPut("password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDTO dto)
     {
@@ -102,7 +105,7 @@ public class CustomersController : ControllerBase
         await _customerService.ChangePasswordAsync(customerGuid, dto);
         return Ok("Password changed successfully");
     }
-    [Authorize(Policy = "CustomerOnly")]
+    [Authorize(Roles = "Customer")]
     [HttpPut("profile")]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateCustomerProfileDTO dto)
     {
@@ -120,7 +123,7 @@ public class CustomersController : ControllerBase
         await _customerService.UpdateCustomerInformationAsync(customerGuid, dto);
         return Ok("Profile updated successfully");
     }
-    [Authorize(Policy = "CustomerOnly")]
+    [Authorize(Roles = "Customer")]
     [HttpPut("profile/avt")]
     public async Task<IActionResult> UpdateCustomerAvt([FromForm] IFormFile avtFile)
     {
@@ -138,7 +141,7 @@ public class CustomersController : ControllerBase
         await _customerService.UpdateCustomerAvtAsync(customerGuid, avtFile);
         return Ok("Profile updated successfully");
     }
-    [Authorize(Policy = "CustomerOnly")]
+    [Authorize(Roles = "Customer")]
     [HttpDelete("account/status")]
     public async Task<IActionResult> DeleteAccount()
     {
@@ -157,7 +160,7 @@ public class CustomersController : ControllerBase
         return Ok("Account deleted successfully");
     }
     //activate account
-    [Authorize(Policy = "CustomerOnly")]
+    [Authorize(Roles = "Customer")]
     [HttpPut("account/status")]
     public async Task<IActionResult> ActivateAccount()
     {
@@ -174,5 +177,34 @@ public class CustomersController : ControllerBase
 
         await _customerService.ActivateCustomerAsync(customerGuid);
         return Ok("Account status updated successfully");
+    }
+    [AllowAnonymous]
+    [HttpPost("newToken")]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
+    {
+        if (string.IsNullOrEmpty(request.RefreshToken))
+            return BadRequest("Refresh token is required");
+
+        var newTokens = await _jwtTokenService.RefreshTokenAsync(request.RefreshToken);
+        if (newTokens.AccessToken == null || newTokens.RefreshToken == null)
+            return Unauthorized("Invalid refresh token");
+
+        return Ok(new
+        {
+            token = newTokens.AccessToken,
+            refreshToken = newTokens.RefreshToken
+        });
+    }
+
+    // log out
+    [AllowAnonymous]
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] string refreshToken)
+    {
+        if (string.IsNullOrEmpty(refreshToken))
+            return BadRequest("Refresh token is required");
+
+        await _jwtTokenService.RevokeTokenAsync(refreshToken);
+        return Ok("Logged out successfully");
     }
 }
