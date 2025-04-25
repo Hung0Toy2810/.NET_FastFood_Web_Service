@@ -37,9 +37,15 @@ namespace LapTrinhWindows.Middleware
                     {
                         OnMessageReceived = context =>
                         {
-                            if (string.IsNullOrEmpty(context.Token))
+                            var authHeader = context.Request.Headers["Authorization"].ToString();
+                            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
                             {
-                                _logger.LogWarning("No token found in request");
+                                _logger.LogWarning("No valid Bearer token found in request. Header: {AuthHeader}", authHeader);
+                            }
+                            else
+                            {
+                                context.Token = authHeader.Substring("Bearer ".Length).Trim();
+                                _logger.LogInformation("Token received: {Token}", context.Token);
                             }
                             return Task.CompletedTask;
                         },
@@ -83,10 +89,29 @@ namespace LapTrinhWindows.Middleware
                                 return;
                             }
 
+                            // check role
+                            var endpoint = context.HttpContext.GetEndpoint();
+                            if (endpoint?.Metadata.GetMetadata<AuthorizeAttribute>() is AuthorizeAttribute authAttribute)
+                            {
+                                var requiredRoles = authAttribute.Roles?.Split(',').Select(r => r.Trim()).ToList();
+                                var userRoles = context.Principal?.Claims
+                                    .Where(c => c.Type == ClaimTypes.Role)
+                                    .Select(c => c.Value)
+                                    .ToList();
+
+                                if (requiredRoles != null && requiredRoles.Any() && 
+                                    (userRoles == null || !requiredRoles.Any(r => userRoles.Contains(r))))
+                                {
+                                    _logger.LogWarning("User {UserId} lacks required roles. Required: {RequiredRoles}, Found: {UserRoles}", 
+                                        userId, string.Join(", ", requiredRoles), string.Join(", ", userRoles ?? new List<string>()));
+                                    context.Fail($"User does not have the required roles. Required: {string.Join(", ", requiredRoles)}");
+                                    return;
+                                }
+                            }
+
                             var redis = context.HttpContext.RequestServices.GetRequiredService<IConnectionMultiplexer>();
                             var db = redis.GetDatabase();
 
-                            // Kiểm tra token có bị thu hồi không
                             var isRevoked = await db.StringGetAsync($"revoked:{jti}");
                             if (!string.IsNullOrEmpty(isRevoked) && isRevoked == "true")
                             {
@@ -95,7 +120,6 @@ namespace LapTrinhWindows.Middleware
                                 return;
                             }
 
-                            // Kiểm tra thông tin phiên
                             var sessionKey = $"session:{userId}";
                             var sessionData = await db.StringGetAsync(sessionKey);
                             if (string.IsNullOrEmpty(sessionData))
@@ -114,7 +138,6 @@ namespace LapTrinhWindows.Middleware
                                 return;
                             }
 
-                            // Kiểm tra thời gian phiên (7 ngày kể từ đăng nhập)
                             if (!long.TryParse(sessionParts[6], out var loginTimestamp))
                             {
                                 _logger.LogWarning("Invalid login timestamp for user {UserId}: {Timestamp}", userId, sessionParts[6]);

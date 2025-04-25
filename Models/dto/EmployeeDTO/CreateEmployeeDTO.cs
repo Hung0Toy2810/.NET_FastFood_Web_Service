@@ -23,7 +23,7 @@ namespace LapTrinhWindows.Models.dto.EmployeeDTO
         public string Password { get; set; } = string.Empty; 
 
         [Required]
-        public int RoleID { get; set; }
+        public string RoleName { get; set; } = string.Empty;
 
         [MaxLength(100)]
         public string AvtKey { get; set; } = "https://www.gravatar.com/avatar/205e460b479e2e5b48aec07710c08d50";

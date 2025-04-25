@@ -73,7 +73,6 @@ namespace LapTrinhWindows.Services
             var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
             var db = _redis.GetDatabase();
 
-            // Tạo refresh token mới, kiểm tra trùng lặp
             string refreshToken;
             int maxAttempts = 3;
             int attempt = 0;
@@ -127,7 +126,6 @@ namespace LapTrinhWindows.Services
                 throw new SecurityTokenException("Session not found");
             }
 
-            // Tách dữ liệu phiên từ Redis
             var sessionParts = sessionData.ToString().Split('|');
             if (sessionParts.Length != 7 || sessionParts[1] != refreshToken)
             {
@@ -142,14 +140,12 @@ namespace LapTrinhWindows.Services
             var role = sessionParts[5];
             var loginTimestamp = long.Parse(sessionParts[6]);
 
-            // Kiểm tra tính hợp lệ của userId
             if (storedUserId != userId)
             {
                 _logger.LogWarning("User ID mismatch for user {UserId}", userId);
                 throw new SecurityTokenException("User ID mismatch");
             }
 
-            // Kiểm tra thời gian phiên (7 ngày kể từ đăng nhập)
             var loginTime = DateTimeOffset.FromUnixTimeSeconds(loginTimestamp).UtcDateTime;
             var sessionDuration = DateTime.UtcNow - loginTime;
             if (sessionDuration.TotalDays > 7)
@@ -160,7 +156,6 @@ namespace LapTrinhWindows.Services
                 throw new SecurityTokenException("Session expired. Please log in again.");
             }
 
-            // Đánh dấu jti cũ là bị thu hồi
             await db.StringSetAsync($"revoked:{oldJti}", "true", TimeSpan.FromMinutes(15));
 
             string GenerateSecureRandomString(int byteLength)
@@ -173,7 +168,6 @@ namespace LapTrinhWindows.Services
                     .TrimEnd('=');
             }
 
-            // Tạo refresh token mới, kiểm tra trùng lặp
             string newRefreshToken;
             int maxAttempts = 3;
             int attempt = 0;
@@ -187,8 +181,6 @@ namespace LapTrinhWindows.Services
                 newRefreshToken = GenerateSecureRandomString(32);
                 attempt++;
             } while (await db.KeyExistsAsync($"refresh:{newRefreshToken}"));
-
-            // Tạo token mới
             var jti = GenerateSecureRandomString(32);
             var claims = new[]
             {
@@ -223,6 +215,7 @@ namespace LapTrinhWindows.Services
         
         public async Task RevokeTokenAsync(string token)
         {
+            // Khởi tạo handler để đọc JWT
             var tokenHandler = new JwtSecurityTokenHandler();
             if (!tokenHandler.CanReadToken(token))
             {
@@ -230,7 +223,10 @@ namespace LapTrinhWindows.Services
                 throw new SecurityTokenException("Invalid token format.");
             }
 
+            // Đọc thông tin từ JWT
             var jwtToken = tokenHandler.ReadJwtToken(token);
+
+            // Lấy JTI (JWT ID) - định danh duy nhất của token
             var jtiClaim = jwtToken.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti);
             if (jtiClaim == null)
             {
@@ -238,6 +234,8 @@ namespace LapTrinhWindows.Services
                 throw new SecurityTokenException("Invalid token: JTI missing.");
             }
             var jti = jtiClaim.Value;
+
+            // Tính thời gian sống còn lại của token
             var ttl = jwtToken.ValidTo - DateTime.UtcNow;
             if (ttl <= TimeSpan.Zero)
             {
@@ -245,8 +243,11 @@ namespace LapTrinhWindows.Services
                 throw new InvalidOperationException("Token is already expired.");
             }
 
+            // Đánh dấu token đã bị thu hồi trong Redis (key: revoked:{jti})
             var db = _redis.GetDatabase();
             await db.StringSetAsync($"revoked:{jti}", "true", ttl);
+
+            // Lấy userId từ claim để xóa session và refresh token liên quan
             var userIdClaim = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
             if (userIdClaim != null)
             {
@@ -254,6 +255,7 @@ namespace LapTrinhWindows.Services
                 var sessionKey = $"session:{userId}";
                 var sessionData = await db.StringGetAsync(sessionKey);
 
+                // Nếu session tồn tại, xóa session và refresh token khỏi Redis
                 if (sessionData.HasValue && !string.IsNullOrEmpty(sessionData.ToString()))
                 {
                     var sessionParts = sessionData.ToString().Split('|');

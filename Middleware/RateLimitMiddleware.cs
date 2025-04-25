@@ -28,9 +28,9 @@ public class RateLimitMiddleware
         var count = await db.StringIncrementAsync(key);
 
         if (count == 1)
-            await db.KeyExpireAsync(key, TimeSpan.FromMinutes(1)); // Reset sau 1 phút
+            await db.KeyExpireAsync(key, TimeSpan.FromMinutes(1));
 
-        int requestLimit = _config.GetValue<int>("RateLimit:RequestsPerMinute", 100); // Mặc định 100 nếu không cấu hình
+        int requestLimit = _config.GetValue<int>("RateLimit:RequestsPerMinute", 100);
         if (count > requestLimit)
         {
             _logger.LogWarning("IP {ClientIp} exceeded rate limit: {Count} requests", clientIp, count);

@@ -6,7 +6,7 @@ namespace LapTrinhWindows.Exceptions
         public NotFoundException(string message, Exception innerException) : base(message, innerException) { }
     }
 
-    // Đổi tên thành CustomValidationException
+    
     public class CustomValidationException : Exception
     {
         public IDictionary<string, string[]> Errors { get; }

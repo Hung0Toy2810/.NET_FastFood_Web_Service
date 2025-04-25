@@ -28,9 +28,8 @@ namespace LapTrinhWindows.Models
         [MaxLength(100)]
         public string AvtKey { get; set; } = "https://www.gravatar.com/avatar/205e460b479e2e5b48aec07710c08d50";
         [Required]
-        public int Point { get; set; } = 0;
+        public int Points { get; set; } = 0;
 
         public virtual ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
-        public virtual ICollection<GiftPromotion> GiftPromotions { get; set; } = new List<GiftPromotion>();
     }
 }

@@ -9,6 +9,7 @@ using LapTrinhWindows.Services.Minio;
 using StackExchange.Redis;
 using Microsoft.Extensions.Logging;
 using LapTrinhWindows.Repositories.EmployeeRepository;
+using LapTrinhWindows.Repositories.RoleRepository;
 
 
 namespace LapTrinhWindows
@@ -67,6 +68,7 @@ namespace LapTrinhWindows
                     services.AddScoped<IEmployeeRepository, EmployeeRepository>();
                     services.AddScoped<IEmployeeService, EmployeeService>();
                     services.AddScoped<IEmployeeLoginService, EmployeeLoginService>();
+                    services.AddScoped<IRoleRepository, RoleRepository>();
 
                     // Cấu hình MinIO
                     services.AddSingleton<IMinioClient>(sp =>
@@ -82,6 +84,7 @@ namespace LapTrinhWindows
                     services.AddScoped<IFileRepository, MinioFileRepository>();
                     services.AddScoped<IFileService, FileService>();
                     services.AddJwtAuthentication(configuration);
+                    services.AddSingleton<MongoDbContext>();
                 })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {

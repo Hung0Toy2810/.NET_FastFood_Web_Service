@@ -4,6 +4,8 @@ namespace LapTrinhWindows.Repositories.ProductRepository
     {
         Task<List<Product>> GetAllProductsAsync();
         Task<Product?> GetProductByIdAsync(int id);
+        // get product by name
+        Task<Product?> GetProductByNameAsync(string name);
         Task<bool> AddProductAsync(Product product);
         Task<bool> UpdateProductAsync(Product product);
         Task<bool> DeleteProductAsync(int id);
@@ -32,24 +34,11 @@ namespace LapTrinhWindows.Repositories.ProductRepository
         public async Task<bool> AddProductAsync(Product product)
         {
             if (product == null) throw new ArgumentNullException(nameof(product));
-
-            //begin transaction
-            using (var transaction = await _context.Database.BeginTransactionAsync())
-            {
-                try
-                {
-                    await _context.Products.AddAsync(product);
-                    var result = await _context.SaveChangesAsync() > 0;
-                    await transaction.CommitAsync();
-                    return result;
-                }
-                catch (Exception)
-                {
-                    await transaction.RollbackAsync();
-                    throw;
-                }
-            }
+            await _context.Products.AddAsync(product);
+            var result = await _context.SaveChangesAsync() > 0;
+            return result;       
         }
+        
 
         public async Task<bool> UpdateProductAsync(Product product)
         {
@@ -94,6 +83,11 @@ namespace LapTrinhWindows.Repositories.ProductRepository
                     throw;
                 }
             }
+        }
+        public async Task<Product?> GetProductByNameAsync(string name)
+        {
+            if (string.IsNullOrEmpty(name)) throw new ArgumentException("Name cannot be null or empty.", nameof(name));
+            return await _context.Products.FirstOrDefaultAsync(p => p.ProductName == name);
         }
     }
 }

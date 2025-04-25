@@ -178,3 +178,9 @@
 /Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/Microsoft.EntityFrameworkCore.Proxies.dll
 /Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/Pipelines.Sockets.Unofficial.dll
 /Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/StackExchange.Redis.dll
+/Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/DnsClient.dll
+/Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/MongoDB.Bson.dll
+/Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/MongoDB.Driver.dll
+/Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/SharpCompress.dll
+/Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/Snappier.dll
+/Users/luongnguyenthanhhung/Documents/LapTrinhWindows/bin/Debug/net9.0/ZstdSharp.dll

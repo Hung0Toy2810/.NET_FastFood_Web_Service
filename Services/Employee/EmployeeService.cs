@@ -1,3 +1,11 @@
+// INSERT INTO EmployeeRoles (RoleName)
+// VALUES 
+//     ('Staff'),
+//     ('Manager');
+
+
+
+
 using LapTrinhWindows.Repositories.EmployeeRepository;
 using LapTrinhWindows.Models;
 using LapTrinhWindows.Models.dto.CustomerDTO;
@@ -7,6 +15,7 @@ using LapTrinhWindows.Services.Minio;
 using System.Text.RegularExpressions;
 using LapTrinhWindows.Models.dto.EmployeeDTO;
 using System.Transactions;
+using LapTrinhWindows.Repositories.RoleRepository;
 
 namespace LapTrinhWindows.Services
 {
@@ -41,42 +50,52 @@ namespace LapTrinhWindows.Services
         private readonly IFileService _fileService;
         private readonly ILogger<CustomerService> _logger;
         private const string CustomerBucketName = "customer-avatars";
+        private readonly IRoleRepository _roleRepository;
 
         public EmployeeService(
             IEmployeeRepository employeeRepository,
             ApplicationDbContext context,
             IPasswordHasher passwordHasher,
             IFileService fileService,
-            ILogger<CustomerService> logger)
+            ILogger<CustomerService> logger,
+            IRoleRepository roleRepository)
         {
             _employeeRepository = employeeRepository ?? throw new ArgumentNullException(nameof(employeeRepository));
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
             _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _roleRepository = roleRepository ?? throw new ArgumentNullException(nameof(roleRepository));
         }
         public async Task<Employee> AddEmployeeAsync(CreateEmployeeDTO dto)
         {
             if (dto == null) throw new ArgumentNullException(nameof(dto), "Employee DTO is null");
             if (string.IsNullOrWhiteSpace(dto.Password)) throw new ArgumentException("Password cannot be empty", nameof(dto.Password));
             if (string.IsNullOrWhiteSpace(dto.PhoneNumber)) throw new ArgumentException("PhoneNumber cannot be empty", nameof(dto.PhoneNumber));
+            if (string.IsNullOrWhiteSpace(dto.RoleName)) throw new ArgumentException("RoleName cannot be empty", nameof(dto.RoleName));
 
             if (!IsPasswordStrong(dto.Password))
             {
                 throw new ArgumentException("Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, and one number.", nameof(dto.Password));
             }
 
-            
             var existingEmployee = await _employeeRepository.GetEmployeeByPhoneNumberAsync(dto.PhoneNumber);
             if (existingEmployee != null)
             {
                 throw new InvalidOperationException($"An employee with PhoneNumber '{dto.PhoneNumber}' already exists.");
             }
 
+            // Tìm RoleID dựa trên RoleName
+            var role = await _context.EmployeeRoles
+                .FirstOrDefaultAsync(r => r.RoleName == dto.RoleName);
+            if (role == null)
+            {
+                throw new InvalidOperationException($"Role with name '{dto.RoleName}' does not exist.");
+            }
+
             string avtKey = dto.AvtKey;
             if (dto.AvtFile != null && dto.AvtFile.Length > 0)
             {
-                
                 if (!await IsImageAsync(dto.AvtFile))
                 {
                     throw new ArgumentException("Avatar file must be an image (JPEG, PNG, GIF, etc.).", nameof(dto.AvtFile));
@@ -99,10 +118,10 @@ namespace LapTrinhWindows.Services
                 PhoneNumber = dto.PhoneNumber,
                 Email = dto.Email,
                 HashPassword = _passwordHasher.HashPassword(dto.Password),
-                RoleID = dto.RoleID,
+                RoleID = role.RoleID, 
                 AvtKey = avtKey,
                 Status = dto.Status,
-                AccountStatus = true 
+                AccountStatus = true
             };
 
             await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -112,7 +131,7 @@ namespace LapTrinhWindows.Services
                 await transaction.CommitAsync();
                 return employee;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 if (transaction != null && transaction.GetDbTransaction().Connection != null)
                 {
@@ -129,7 +148,7 @@ namespace LapTrinhWindows.Services
                         throw new InvalidOperationException("Rollback failed after an error occurred.", rollbackEx);
                     }
                 }
-                throw new InvalidOperationException("Failed to add employee.");
+                throw new InvalidOperationException($"Failed to add employee: {ex.Message}", ex);
             }
         }
         public async Task<EmployeeProfileDTO> GetEmployeeProfileByIdAsync(Guid employeeId)

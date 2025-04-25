@@ -55,7 +55,7 @@ namespace LapTrinhWindows.Controllers
             }
         }
         
-        [Authorize]
+        [Authorize (Roles = "Staff,Manager")]
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {

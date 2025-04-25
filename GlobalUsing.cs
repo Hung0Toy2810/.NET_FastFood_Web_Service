@@ -30,6 +30,6 @@ global using System.Security.Claims;
 global using System.Threading;
 global using System.Security.Cryptography;
 global using System.Net.Http;
-global using LapTrinhWindows.DataSeeding;
 global using Minio;
 global using Minio.DataModel;
+global using LapTrinhWindows.Context;
