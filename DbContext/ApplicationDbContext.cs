@@ -75,12 +75,6 @@ namespace LapTrinhWindows.Context
                 .HasForeignKey(v => v.ProductID)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Category 1-n Attribute 
-            modelBuilder.Entity<LapTrinhWindows.Models.Attribute>()
-                .HasOne(a => a.Category)
-                .WithMany(c => c.Attributes)
-                .HasForeignKey(a => a.CategoryID)
-                .OnDelete(DeleteBehavior.SetNull);
 
             // Attribute 1-n AttributeValue
             modelBuilder.Entity<AttributeValue>()
@@ -159,7 +153,6 @@ namespace LapTrinhWindows.Context
             modelBuilder.Entity<Category>().HasIndex(c => c.CategoryName).IsUnique();
             modelBuilder.Entity<Tag>().HasIndex(t => t.TagName).IsUnique();
             modelBuilder.Entity<Variant>().HasIndex(v => v.ProductID);
-            modelBuilder.Entity<LapTrinhWindows.Models.Attribute>().HasIndex(a => a.CategoryID);
             modelBuilder.Entity<AttributeValue>().HasIndex(av => av.AttributeID);
             modelBuilder.Entity<VariantAttribute>().HasIndex(va => va.VariantID);
             modelBuilder.Entity<VariantAttribute>().HasIndex(va => va.AttributeID);
@@ -174,8 +167,16 @@ namespace LapTrinhWindows.Context
             modelBuilder.Entity<Invoice>().HasIndex(i => i.CreateAt);
             modelBuilder.Entity<ProductImage>().HasIndex(pi => pi.ProductID);
             modelBuilder.Entity<PointRedemption>().HasIndex(pr => pr.Status);
-            modelBuilder.Entity<Product>().HasIndex(p => p.ProductName);
-
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.ProductName)
+                .IsUnique();
+            modelBuilder.Entity<Variant>()
+                .HasIndex(v => v.SKU)
+                .IsUnique();
+            modelBuilder.Entity<VariantAttribute>()
+                .HasKey(va => new { va.VariantID, va.AttributeValueID });
+            modelBuilder.Entity<VariantAttribute>()
+                .HasIndex(va => new { va.VariantID, va.AttributeValueID });
             // Default values for GUIDs
             modelBuilder.Entity<Employee>().Property(e => e.EmployeeID).HasDefaultValueSql("NEWSEQUENTIALID()");
             modelBuilder.Entity<Customer>().Property(c => c.CustomerID).HasDefaultValueSql("NEWSEQUENTIALID()");

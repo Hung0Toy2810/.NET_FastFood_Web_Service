@@ -8,8 +8,9 @@ namespace LapTrinhWindows.Services.Minio
         Task<byte[]> DownloadFileAsync(string bucketName, string fileName);
         Task DeleteFileAsync(string bucketName, string fileName);
         Task UpdateFileAsync(IFormFile file, string bucketName, string existingFileName);
-        Task<string> GetPresignedUrlAsync(string bucketName, string fileName, TimeSpan expiry); // Thêm URL tạm thời
-        Task<string> ConvertAndUploadAsJpgAsync(Stream fileStream, string bucketName, string fileName, long maxSize); // Thêm chuyển đổi JPG
+        Task<string> GetPresignedUrlAsync(string bucketName, string fileName, TimeSpan expiry);
+        Task<string> ConvertAndUploadAsJpgAsync(Stream fileStream, string bucketName, string fileName, long maxSize);
+        string GetPublicImageUrl(string bucketName, string objectName); // Đã thêm
     }
 
     public class FileService : IFileService
@@ -18,7 +19,7 @@ namespace LapTrinhWindows.Services.Minio
 
         public FileService(IFileRepository fileRepository)
         {
-            _fileRepository = fileRepository;
+            _fileRepository = fileRepository ?? throw new ArgumentNullException(nameof(fileRepository));
         }
 
         public Task<string> UploadFileAsync(IFormFile file, string bucketName)
@@ -49,6 +50,11 @@ namespace LapTrinhWindows.Services.Minio
         public Task<string> ConvertAndUploadAsJpgAsync(Stream fileStream, string bucketName, string fileName, long maxSize)
         {
             return _fileRepository.ConvertAndUploadAsJpgAsync(fileStream, bucketName, fileName, maxSize);
+        }
+
+        public string GetPublicImageUrl(string bucketName, string objectName)
+        {
+            return _fileRepository.GetPublicImageUrl(bucketName, objectName);
         }
     }
 }

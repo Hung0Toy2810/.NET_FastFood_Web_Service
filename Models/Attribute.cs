@@ -8,12 +8,7 @@ namespace LapTrinhWindows.Models
 
         [Required]
         [MaxLength(50)]
-        public string Name { get; set; } = string.Empty; 
-
-        public int? CategoryID { get; set; } 
-
-        [ForeignKey("CategoryID")]
-        public virtual Category? Category { get; set; }
+        public string AttributeName { get; set; } = string.Empty; 
 
         public virtual ICollection<AttributeValue> AttributeValues { get; set; } = new List<AttributeValue>();
         //VariantAttributes

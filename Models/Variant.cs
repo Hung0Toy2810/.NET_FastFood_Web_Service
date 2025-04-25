@@ -17,10 +17,12 @@ namespace LapTrinhWindows.Models
         public string SKU { get; set; } = string.Empty; // Mã SKU duy nhất cho biến thể (dùng mã vạch)
 
         [Required]
-        public double Price { get; set; } // Giá cụ thể của biến thể
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal Price { get; set; }
 
         [Required]
-        public int AvailableQuantity { get; set; } // Số lượng tồn kho của biến thể
+        [Range(0, int.MaxValue, ErrorMessage = "Stock must be non-negative.")]
+        public int Stock { get; set; }
 
         public virtual ICollection<VariantAttribute> VariantAttributes { get; set; } = new List<VariantAttribute>(); // Liên kết với thuộc tính
     }

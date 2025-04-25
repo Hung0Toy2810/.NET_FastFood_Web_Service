@@ -21,6 +21,8 @@ namespace LapTrinhWindows.Models
 
         [MaxLength(100)]
         public string ImageKey { get; set; } = "default.jpg";
+        [MaxLength(500)]
+        public string? ImageUrl { get; set; }
 
         public virtual ICollection<InvoiceDetail> InvoiceDetails { get; set; } = new List<InvoiceDetail>();
         public virtual ICollection<Variant> Variants { get; set; } = new List<Variant>();

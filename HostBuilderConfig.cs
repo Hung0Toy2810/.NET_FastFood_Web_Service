@@ -10,6 +10,10 @@ using StackExchange.Redis;
 using Microsoft.Extensions.Logging;
 using LapTrinhWindows.Repositories.EmployeeRepository;
 using LapTrinhWindows.Repositories.RoleRepository;
+using ProductRepo = LapTrinhWindows.Repositories.ProductRepository;
+using LapTrinhWindows.Repositories.CategoryRepository;
+using LapTrinhWindows.Repositories.VariantRepository;
+using LapTrinhWindows.Repositories.VariantAttributeRepository;
 
 
 namespace LapTrinhWindows
@@ -69,7 +73,14 @@ namespace LapTrinhWindows
                     services.AddScoped<IEmployeeService, EmployeeService>();
                     services.AddScoped<IEmployeeLoginService, EmployeeLoginService>();
                     services.AddScoped<IRoleRepository, RoleRepository>();
-
+                    services.AddScoped<ProductRepo.IProductRepository, ProductRepo.ProductRepository>();
+                    services.AddScoped<ICategoryRepository, CategoryRepository>();
+                    services.AddScoped<IVariantRepository, VariantRepository>();
+                    services.AddScoped<IAttributeRepository, AttributeRepository>();
+                    services.AddScoped<IAttributeValueRepository, AttributeValueRepository>();
+                    services.AddScoped<IVariantAttributeRepository, VariantAttributeRepository>();
+                    //IProductService
+                    services.AddScoped<IProductService, ProductService>();
                     // Cấu hình MinIO
                     services.AddSingleton<IMinioClient>(sp =>
                     {
@@ -81,7 +92,7 @@ namespace LapTrinhWindows
                             .Build();
                     });
 
-                    services.AddScoped<IFileRepository, MinioFileRepository>();
+                    services.AddScoped<IFileRepository, FileRepository>();
                     services.AddScoped<IFileService, FileService>();
                     services.AddJwtAuthentication(configuration);
                     services.AddSingleton<MongoDbContext>();

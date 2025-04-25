@@ -2,7 +2,6 @@ namespace LapTrinhWindows.Models
 {
     public class VariantAttribute
     {
-        [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int VariantAttributeID { get; set; }
 

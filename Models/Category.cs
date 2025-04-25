@@ -11,6 +11,6 @@ namespace LapTrinhWindows.Models
         public string CategoryName { get; set; } = string.Empty;
 
         public virtual ICollection<Product> Products { get; set; } = new List<Product>();
-        public virtual ICollection<Attribute> Attributes { get; set; } = new List<Attribute>();
+        
     }
 }

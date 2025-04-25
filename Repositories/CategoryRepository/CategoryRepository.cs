@@ -3,10 +3,8 @@ namespace LapTrinhWindows.Repositories.CategoryRepository
     public interface ICategoryRepository
     {
         Task<List<Category>> GetAllCategoriesAsync();
-        Task<Category?> GetCategoryByIdAsync(int id);
-        Task<Category> CreateCategoryAsync(Category category);
-        Task<Category> UpdateCategoryAsync(Category category);
-        Task<bool> DeleteCategoryAsync(int id);
+        Task<Category?> GetCategoryByIdAsync(int categoryId);
+        Task<bool> CategoryExistsAsync(int categoryId);
     }
 
     public class CategoryRepository : ICategoryRepository
@@ -23,78 +21,14 @@ namespace LapTrinhWindows.Repositories.CategoryRepository
             return await _context.Categories.ToListAsync();
         }
 
-        public async Task<Category?> GetCategoryByIdAsync(int id)
+        public async Task<Category?> GetCategoryByIdAsync(int categoryId)
         {
-            if (id <= 0) throw new ArgumentException("ID must be greater than 0.", nameof(id));
-            return await _context.Categories.FindAsync(id);
+            return await _context.Categories.FindAsync(categoryId);
         }
 
-        public async Task<Category> CreateCategoryAsync(Category category)
+        public async Task<bool> CategoryExistsAsync(int categoryId)
         {
-            if (category == null) throw new ArgumentNullException(nameof(category));
-
-            //begin transaction
-            using (var transaction = await _context.Database.BeginTransactionAsync())
-            {
-                try
-                {
-                    await _context.Categories.AddAsync(category);
-                    await _context.SaveChangesAsync();
-                    await transaction.CommitAsync();
-                    return category;
-                }
-                catch (Exception)
-                {
-                    await transaction.RollbackAsync();
-                    throw;
-                }
-            }
-        }
-
-        public async Task<Category> UpdateCategoryAsync(Category category)
-        {
-            if (category == null) throw new ArgumentNullException(nameof(category));
-
-            //begin transaction
-            using (var transaction = await _context.Database.BeginTransactionAsync())
-            {
-                try
-                {
-                    _context.Categories.Update(category);
-                    await _context.SaveChangesAsync();
-                    await transaction.CommitAsync();
-                    return category;
-                }
-                catch (Exception)
-                {
-                    await transaction.RollbackAsync();
-                    throw;
-                }
-            }
-        }
-
-        public async Task<bool> DeleteCategoryAsync(int id)
-        {
-            if (id <= 0) throw new ArgumentException("ID must be greater than 0.", nameof(id));
-            //begin transaction
-            using (var transaction = await _context.Database.BeginTransactionAsync())
-            {
-                try
-                {
-                    var category = await _context.Categories.FindAsync(id);
-                    if (category == null) throw new InvalidOperationException($"Category with ID '{id}' not found.");
-
-                    _context.Categories.Remove(category);
-                    await _context.SaveChangesAsync();
-                    await transaction.CommitAsync();
-                    return true;
-                }
-                catch (Exception)
-                {
-                    await transaction.RollbackAsync();
-                    throw;
-                }
-            }
+            return await _context.Categories.AnyAsync(c => c.CategoryID == categoryId);
         }
     }
 }
