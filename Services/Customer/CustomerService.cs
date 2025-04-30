@@ -121,7 +121,6 @@ namespace LapTrinhWindows.Services
             }
         }
 
-        // Hàm kiểm tra ảnh (giữ nguyên từ trước)
         private async Task<bool> IsImageAsync(IFormFile file)
         {
             if (file == null || file.Length == 0) return false;

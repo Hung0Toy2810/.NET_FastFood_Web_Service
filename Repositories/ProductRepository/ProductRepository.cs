@@ -9,6 +9,10 @@ namespace LapTrinhWindows.Repositories.ProductRepository
         Task AddProductAsync(Product product);
         Task<ProductDetailDTO> GetProductDetailAsync(int id);
         Task UpdateProductAsync(int id, UpdateProductDTO dto);
+        Task DeleteProductAsync(int id);
+        Task<List<ProductImage>> GetProductImagesByProductIdAsync(int productId);
+        Task<bool> IsImageKeyUsedByOtherImagesAsync(string imageKey, int excludeProductId);
+
     }
 
     public class ProductRepository : IProductRepository
@@ -47,10 +51,13 @@ namespace LapTrinhWindows.Repositories.ProductRepository
                 .ThenInclude(v => v.VariantAttributes)
                 .ThenInclude(va => va.AttributeValue)
                 .ThenInclude(av => av.Attribute)
+                .Include(p => p.AdditionalImages) // Thêm nạp AdditionalImages
                 .FirstOrDefaultAsync(p => p.ProductID == id);
 
-            if (product == null) 
+            if (product == null)
+            {
                 throw new InvalidOperationException($"Product with ID {id} not found.");
+            }
 
             var attributes = product.Variants
                 .SelectMany(v => v.VariantAttributes)
@@ -84,6 +91,7 @@ namespace LapTrinhWindows.Repositories.ProductRepository
                 CategoryID = product.CategoryID,
                 Discount = product.Discount,
                 ImageUrl = product.ImageUrl,
+                AdditionalImageUrls = product.AdditionalImages.Select(pi => pi.ImageUrl).ToList(), // Thêm danh sách URL ảnh phụ
                 Attributes = attributes,
                 Variants = variants
             };
@@ -223,6 +231,92 @@ namespace LapTrinhWindows.Repositories.ProductRepository
             }
 
             await _context.SaveChangesAsync();
+        }
+        public async Task DeleteProductAsync(int id)
+        {
+            var product = await _context.Products
+                .Include(p => p.Variants)
+                .ThenInclude(v => v.VariantAttributes)
+                .Include(p => p.AdditionalImages)
+                .FirstOrDefaultAsync(p => p.ProductID == id);
+
+            if (product == null)
+            {
+                throw new KeyNotFoundException($"Product with ID '{id}' not found.");
+            }
+
+            // Xóa VariantAttributes và Variants
+            foreach (var variant in product.Variants)
+            {
+                _context.VariantAttributes.RemoveRange(variant.VariantAttributes);
+                _context.Variants.Remove(variant);
+            }
+
+            // Xóa ProductImages
+            _context.ProductImages.RemoveRange(product.AdditionalImages);
+
+            // Xóa sản phẩm
+            _context.Products.Remove(product);
+
+            // Xóa AttributeValues không còn được sử dụng
+            var usedAttributeValueIds = product.Variants
+                .SelectMany(v => v.VariantAttributes)
+                .Select(va => va.AttributeValueID)
+                .Distinct()
+                .ToHashSet();
+
+            var unusedAttributeValues = await _context.AttributeValues
+                .Where(av => usedAttributeValueIds.Contains(av.AttributeValueID))
+                .ToListAsync();
+
+            foreach (var av in unusedAttributeValues)
+            {
+                var isUsedElsewhere = await _context.VariantAttributes
+                    .AnyAsync(va => va.AttributeValueID == av.AttributeValueID && va.Variant.ProductID != id);
+
+                if (!isUsedElsewhere)
+                {
+                    _context.AttributeValues.Remove(av);
+                }
+            }
+
+            // Xóa Attributes không còn được sử dụng
+            var usedAttributeIds = await _context.AttributeValues
+                .Where(av => usedAttributeValueIds.Contains(av.AttributeValueID))
+                .Select(av => av.AttributeID)
+                .Distinct()
+                .ToHashSetAsync();
+
+            var unusedAttributes = await _context.Attributes
+                .Where(a => !usedAttributeIds.Contains(a.AttributeID))
+                .ToListAsync();
+
+            foreach (var attr in unusedAttributes)
+            {
+                var isUsedElsewhere = await _context.AttributeValues
+                    .AnyAsync(av => av.AttributeID == attr.AttributeID);
+
+                if (!isUsedElsewhere)
+                {
+                    _context.Attributes.Remove(attr);
+                }
+            }
+
+            await _context.SaveChangesAsync();
+        }
+        public async Task<List<ProductImage>> GetProductImagesByProductIdAsync(int productId)
+        {
+            return await _context.ProductImages
+                .Where(pi => pi.ProductID == productId)
+                .ToListAsync();
+        }
+
+        public async Task<bool> IsImageKeyUsedByOtherImagesAsync(string imageKey, int excludeProductId)
+        {
+            return await _context.Products
+                .AnyAsync(p => p.ImageKey == imageKey && p.ProductID != excludeProductId)
+                || await _context.ProductImages
+                    .AnyAsync(pi => pi.ImageKey == imageKey && pi.ProductID != excludeProductId);
         }
     }
 }

@@ -6,6 +6,7 @@ namespace LapTrinhWindows.Repositories.VariantRepository
         Task<bool> VariantExistsForProductAsync(int productId, List<int> attributeValueIds);
         Task<bool> SkuExistsAsync(string sku);
         Task UpdateVariantPriceBySkuAsync(string sku, decimal price);
+        Task<Variant?> GetVariantBySkuAsync(string sku);
     }
     public class VariantRepository : IVariantRepository
     {
@@ -46,6 +47,20 @@ namespace LapTrinhWindows.Repositories.VariantRepository
             variant.Price = price;
             _context.Variants.Update(variant);
             await _context.SaveChangesAsync();
+        }
+        public async Task<Variant?> GetVariantBySkuAsync(string sku)
+        {
+            if (string.IsNullOrWhiteSpace(sku))
+            {
+                throw new ArgumentException("SKU cannot be empty.", nameof(sku));
+            }
+
+            var variant = await _context.Variants
+                .Include(v => v.VariantAttributes)
+                .ThenInclude(va => va.AttributeValue)
+                .FirstOrDefaultAsync(v => v.SKU == sku);
+
+            return variant;
         }
     }
 }

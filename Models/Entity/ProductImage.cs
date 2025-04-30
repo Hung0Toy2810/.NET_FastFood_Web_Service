@@ -18,6 +18,9 @@ namespace LapTrinhWindows.Models
         [Required]
         [MaxLength(100)]
         public string ImageKey { get; set; } = string.Empty; // Đường dẫn hoặc key của ảnh phụ
+        [Required]
+        [MaxLength(100)]
+        public string ImageUrl { get; set; } = string.Empty; // Đường dẫn URL của ảnh phụ
 
         [Required]
         public int OrdinalNumbers { get; set; } = 0; 

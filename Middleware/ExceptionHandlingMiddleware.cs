@@ -62,22 +62,37 @@ namespace LapTrinhWindows.Middleware
                 case UnauthorizedAccessException unauthorizedEx:
                     HandleUnauthorizedAccessException(problemDetails, unauthorizedEx);
                     break;
-                //SecurityTokenExpiredException
+                // 🟢 Đặt lớp con trước
                 case SecurityTokenExpiredException securityTokenExpiredEx:
                     HandleSecurityTokenExpiredException(problemDetails, securityTokenExpiredEx);
                     break;
-                //SecurityTokenException exception
+                // 🟢 Sau đó mới đến lớp cha
                 case SecurityTokenException securityTokenEx:
                     HandleSecurityTokenException(problemDetails, securityTokenEx);
                     break;
-                //ArgumentException
+                case ArgumentNullException argumentNullEx:
+                    HandleArgumentNullException(problemDetails, argumentNullEx);
+                    break;
                 case ArgumentException argumentEx:
                     HandleArgumentException(problemDetails, argumentEx);
+                    break;
+                case InvalidOperationException invalidOpEx:
+                    HandleInvalidOperationException(problemDetails, invalidOpEx);
+                    break;
+                case DbUpdateException dbUpdateEx:
+                    HandleDbUpdateException(problemDetails, dbUpdateEx);
+                    break;
+                case TimeoutException timeoutEx:
+                    HandleTimeoutException(problemDetails, timeoutEx);
+                    break;
+                case HttpRequestException httpEx:
+                    HandleHttpRequestException(problemDetails, httpEx);
                     break;
                 default:
                     HandleDefaultException(problemDetails, exception);
                     break;
             }
+
 
             // Thêm thông tin bổ sung trong môi trường development
             if (_env.IsDevelopment())
@@ -178,6 +193,44 @@ namespace LapTrinhWindows.Middleware
             problemDetails.Type = "https://tools.ietf.org/html/rfc7231#section-6.6.1";
             problemDetails.Detail = ex.Message;
         }
+        private void HandleArgumentNullException(ProblemDetails problemDetails, ArgumentNullException ex)
+        {
+            problemDetails.Status = StatusCodes.Status400BadRequest;
+            problemDetails.Title = "Missing Required Argument";
+            problemDetails.Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1";
+            problemDetails.Detail = ex.Message;
+        }
+        private void HandleInvalidOperationException(ProblemDetails problemDetails, InvalidOperationException ex)
+        {
+            problemDetails.Status = StatusCodes.Status409Conflict;
+            problemDetails.Title = "Invalid Operation";
+            problemDetails.Type = "https://tools.ietf.org/html/rfc7231#section-6.5.8";
+            problemDetails.Detail = ex.Message;
+        }
+        private void HandleDbUpdateException(ProblemDetails problemDetails, DbUpdateException ex)
+        {
+            problemDetails.Status = StatusCodes.Status500InternalServerError;
+            problemDetails.Title = "Database Update Error";
+            problemDetails.Type = "https://tools.ietf.org/html/rfc7231#section-6.6.1";
+            problemDetails.Detail = ex.InnerException?.Message ?? ex.Message;
+        }
+        private void HandleTimeoutException(ProblemDetails problemDetails, TimeoutException ex)
+        {
+            problemDetails.Status = StatusCodes.Status504GatewayTimeout;
+            problemDetails.Title = "Operation Timed Out";
+            problemDetails.Type = "https://tools.ietf.org/html/rfc7231#section-6.6.5";
+            problemDetails.Detail = ex.Message;
+        }
+
+        private void HandleHttpRequestException(ProblemDetails problemDetails, HttpRequestException ex)
+        {
+            problemDetails.Status = StatusCodes.Status502BadGateway;
+            problemDetails.Title = "HTTP Request Failed";
+            problemDetails.Type = "https://tools.ietf.org/html/rfc7231#section-6.6.3";
+            problemDetails.Detail = ex.Message;
+        }
+
+
 
         // VÍ DỤ: Nếu muốn THÊM một exception mới, bạn có thể làm như sau:
         // 1. Thêm vào switch ở trên:

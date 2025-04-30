@@ -23,6 +23,8 @@ namespace LapTrinhWindows.Context
         public DbSet<PointRedemption> PointRedemptions { get; set; }
         public DbSet<ProductTag> ProductTags { get; set; }
         public DbSet<Tag> Tags { get; set; }
+        //ProductImages
+        public DbSet<ProductImage> ProductImages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -19,10 +19,10 @@ namespace LapTrinhWindows.Models.DTO
 
         public IFormFile? ImageFile { get; set; }
 
-        [Required]
+        
         public List<CreateAttributeDTO> Attributes { get; set; } = new List<CreateAttributeDTO>(); 
 
-        [Required]
+        
         public List<CreateVariantDTO> Variants { get; set; } = new List<CreateVariantDTO>(); 
     }
 

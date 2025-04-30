@@ -7,6 +7,7 @@ namespace LapTrinhWindows.Models.DTO
         public int CategoryID { get; set; }
         public double Discount { get; set; }
         public string? ImageUrl { get; set; }
+        public List<string> AdditionalImageUrls { get; set; } = new(); // Thêm danh sách URL ảnh phụ
         public List<AttributeDTO> Attributes { get; set; } = new();
         public List<VariantDTO> Variants { get; set; } = new();
     }
