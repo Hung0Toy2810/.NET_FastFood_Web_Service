@@ -25,5 +25,9 @@ namespace LapTrinhWindows.Models
         public int Stock { get; set; }
 
         public virtual ICollection<VariantAttribute> VariantAttributes { get; set; } = new List<VariantAttribute>(); // Liên kết với thuộc tính
+        public virtual ICollection<InvoiceDetail> InvoiceDetails { get; set; } = new List<InvoiceDetail>(); // Liên kết với hóa đơn chi tiết
+        
+        public virtual ICollection<PointRedemption> PointRedemptions { get; set; } = new List<PointRedemption>(); // Liên kết với hóa đơn chi tiết
+        public virtual ICollection<Batch> Batches { get; set; } = new List<Batch>(); // Liên kết với hóa đơn chi tiết
     }
 }

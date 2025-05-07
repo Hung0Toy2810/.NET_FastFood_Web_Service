@@ -10,7 +10,10 @@ namespace LapTrinhWindows.Services.Minio
         Task UpdateFileAsync(IFormFile file, string bucketName, string existingFileName);
         Task<string> GetPresignedUrlAsync(string bucketName, string fileName, TimeSpan expiry);
         Task<string> ConvertAndUploadAsJpgAsync(Stream fileStream, string bucketName, string fileName, long maxSize);
-        string GetPublicImageUrl(string bucketName, string objectName); // Đã thêm
+        //Task<string> GetStaticPublicFileUrl(string bucketName, string objectName);
+        Task<string> GetStaticPublicFileUrl(string bucketName, string objectName);
+        //Task<string> ConvertAndUploadPublicFileAsJpgAsync(Stream fileStream, string bucketName, string fileName, long maxSize);
+        Task<string> ConvertAndUploadPublicFileAsJpgAsync(Stream fileStream, string bucketName, string fileName, long maxSize);
     }
 
     public class FileService : IFileService
@@ -52,9 +55,13 @@ namespace LapTrinhWindows.Services.Minio
             return _fileRepository.ConvertAndUploadAsJpgAsync(fileStream, bucketName, fileName, maxSize);
         }
 
-        public string GetPublicImageUrl(string bucketName, string objectName)
+        public Task<string> GetStaticPublicFileUrl(string bucketName, string objectName)
         {
-            return _fileRepository.GetPublicImageUrl(bucketName, objectName);
+            return _fileRepository.GetStaticPublicFileUrl(bucketName, objectName);
+        }
+        public Task<string> ConvertAndUploadPublicFileAsJpgAsync(Stream fileStream, string bucketName, string fileName, long maxSize)
+        {
+            return _fileRepository.ConvertAndUploadPublicFileAsJpgAsync(fileStream, bucketName, fileName, maxSize);
         }
     }
 }

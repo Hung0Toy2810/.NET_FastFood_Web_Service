@@ -9,7 +9,7 @@ namespace LapTrinhWindows.Models.DTO
         public string ProductName { get; set; } = string.Empty;
 
         [Required]
-        public int CategoryID { get; set; }
+        public int CategoryID { get; set; }      
 
         [Required, Range(0, 1)]
         public double Discount { get; set; }

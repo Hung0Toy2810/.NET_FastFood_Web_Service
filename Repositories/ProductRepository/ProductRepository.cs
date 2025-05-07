@@ -1,4 +1,6 @@
 using LapTrinhWindows.Models.DTO;
+using Microsoft.EntityFrameworkCore.Storage;
+
 namespace LapTrinhWindows.Repositories.ProductRepository
 {
     public interface IProductRepository
@@ -12,6 +14,8 @@ namespace LapTrinhWindows.Repositories.ProductRepository
         Task DeleteProductAsync(int id);
         Task<List<ProductImage>> GetProductImagesByProductIdAsync(int productId);
         Task<bool> IsImageKeyUsedByOtherImagesAsync(string imageKey, int excludeProductId);
+        Task EnsureNoRelatedInvoicesAsync(int productId);
+        Task EnsureNoRelatedBatchesAsync(int productId);
 
     }
 
@@ -68,7 +72,6 @@ namespace LapTrinhWindows.Repositories.ProductRepository
                     Values = g.Select(va => va.AttributeValue.Value).Distinct().ToList()
                 })
                 .ToList();
-
             var variants = product.Variants
                 .Select(v => new VariantDTO
                 {
@@ -98,143 +101,196 @@ namespace LapTrinhWindows.Repositories.ProductRepository
         }
         public async Task UpdateProductAsync(int id, UpdateProductDTO dto)
         {
-            var product = await _context.Products
-                .Include(p => p.Variants)
-                .ThenInclude(v => v.VariantAttributes)
-                .FirstOrDefaultAsync(p => p.ProductID == id);
+            IDbContextTransaction? transaction = default;
+            bool ownsTransaction = false;
 
-            if (product == null)
+            try
             {
-                throw new KeyNotFoundException($"Product with ID '{id}' not found.");
-            }
-
-            // Cập nhật thông tin cơ bản
-            product.ProductName = dto.ProductName;
-            product.CategoryID = dto.CategoryID;
-            product.Discount = dto.Discount;
-            product.ImageKey = dto.ImageKey;
-            product.ImageUrl = product.ImageUrl; // Giữ nguyên ImageUrl
-
-            // Lấy danh sách SKU hiện tại
-            var existingSkus = product.Variants.Select(v => v.SKU).ToHashSet();
-            var newSkus = dto.Variants.Select(v => v.SKU).ToHashSet();
-
-            // Xóa các Variant không còn trong DTO
-            var variantsToRemove = product.Variants
-                .Where(v => !newSkus.Contains(v.SKU))
-                .ToList();
-
-            foreach (var variant in variantsToRemove)
-            {
-                _context.VariantAttributes.RemoveRange(variant.VariantAttributes);
-                _context.Variants.Remove(variant);
-            }
-
-            // Thêm/cập nhật Variants
-            foreach (var variantDto in dto.Variants)
-            {
-                var variant = product.Variants
-                    .FirstOrDefault(v => v.SKU == variantDto.SKU);
-
-                if (variant == null)
+                // Kiểm tra giao dịch hiện tại
+                if (_context.Database.CurrentTransaction == null)
                 {
-                    variant = new Variant
-                    {
-                        ProductID = product.ProductID,
-                        SKU = variantDto.SKU,
-                        Price = variantDto.Price,
-                        Stock = variantDto.Stock
-                    };
-                    product.Variants.Add(variant);
+                    transaction = await _context.Database.BeginTransactionAsync();
+                    ownsTransaction = true;
                 }
-                else
+
+                var product = await _context.Products
+                    .Include(p => p.Variants)
+                    .ThenInclude(v => v.VariantAttributes)
+                    .ThenInclude(va => va.AttributeValue)
+                    .ThenInclude(av => av.Attribute)
+                    .Include(p => p.Category)
+                    .FirstOrDefaultAsync(p => p.ProductID == id);
+
+                if (product == null)
                 {
-                    variant.Price = variantDto.Price;
-                    variant.Stock = variantDto.Stock;
+                    throw new KeyNotFoundException($"Product with ID '{id}' not found.");
+                }
+
+                // Cập nhật thông tin cơ bản
+                product.ProductName = dto.ProductName;
+                product.CategoryID = dto.CategoryID;
+                product.Discount = dto.Discount;
+                product.ImageKey = dto.ImageKey;
+                product.ImageUrl = product.ImageUrl;
+
+                // Xóa các Variant không còn trong DTO
+                var existingSkus = product.Variants.Select(v => v.SKU).ToHashSet();
+                var newSkus = dto.Variants.Select(v => v.SKU).ToHashSet();
+                var variantsToRemove = product.Variants
+                    .Where(v => !newSkus.Contains(v.SKU))
+                    .ToList();
+
+                foreach (var variant in variantsToRemove)
+                {
                     _context.VariantAttributes.RemoveRange(variant.VariantAttributes);
+                    _context.Variants.Remove(variant);
                 }
 
-                // Thêm VariantAttributes
-                foreach (var kvp in variantDto.AttributeValues)
-                {
-                    var attr = await _context.Attributes
-                        .FirstOrDefaultAsync(a => a.AttributeName == kvp.Key)
-                        ?? new LapTrinhWindows.Models.Attribute { AttributeName = kvp.Key };
+                var newAttributes = new List<LapTrinhWindows.Models.Attribute>();
+                var newAttributeValues = new List<AttributeValue>();
+                var newVariantAttributes = new List<VariantAttribute>();
 
-                    if (attr.AttributeID == 0)
+                foreach (var variantDto in dto.Variants)
+                {
+                    var variant = product.Variants.FirstOrDefault(v => v.SKU == variantDto.SKU);
+                    if (variant == null)
                     {
-                        _context.Attributes.Add(attr);
-                        await _context.SaveChangesAsync();
+                        variant = new Variant
+                        {
+                            ProductID = product.ProductID,
+                            SKU = variantDto.SKU,
+                            Price = variantDto.Price,
+                            Stock = variantDto.Stock
+                        };
+                        product.Variants.Add(variant);
+                    }
+                    else
+                    {
+                        variant.Price = variantDto.Price;
+                        variant.Stock = variantDto.Stock;
+                        _context.VariantAttributes.RemoveRange(variant.VariantAttributes);
                     }
 
-                    var attrValue = await _context.AttributeValues
-                        .FirstOrDefaultAsync(av => av.AttributeID == attr.AttributeID && av.Value == kvp.Value)
-                        ?? new AttributeValue { AttributeID = attr.AttributeID, Value = kvp.Value };
-
-                    if (attrValue.AttributeValueID == 0)
+                    foreach (var kvp in variantDto.AttributeValues)
                     {
-                        _context.AttributeValues.Add(attrValue);
-                        await _context.SaveChangesAsync();
+                        // Tìm hoặc tạo Attribute
+                        var attr = newAttributes.FirstOrDefault(a => a.AttributeName == kvp.Key)
+                            ?? await _context.Attributes.FirstOrDefaultAsync(a => a.AttributeName == kvp.Key)
+                            ?? new LapTrinhWindows.Models.Attribute { AttributeName = kvp.Key };
+
+                        if (attr.AttributeID == 0)
+                        {
+                            newAttributes.Add(attr);
+                            _context.Attributes.Add(attr);
+                        }
+
+                        // Tìm hoặc tạo AttributeValue
+                        var attrValue = newAttributeValues.FirstOrDefault(av => av.AttributeID == attr.AttributeID && av.Value == kvp.Value)
+                            ?? await _context.AttributeValues.FirstOrDefaultAsync(av => av.AttributeID == attr.AttributeID && av.Value == kvp.Value)
+                            ?? new AttributeValue { AttributeID = attr.AttributeID, Value = kvp.Value };
+
+                        if (attrValue.AttributeValueID == 0)
+                        {
+                            newAttributeValues.Add(attrValue);
+                            _context.AttributeValues.Add(attrValue);
+                        }
+
+                        // Tạo VariantAttribute
+                        newVariantAttributes.Add(new VariantAttribute
+                        {
+                            Variant = variant, 
+                            AttributeValue = attrValue, 
+                            Attribute = attr 
+                        });
                     }
+                }
 
-                    variant.VariantAttributes.Add(new VariantAttribute
+                // Thêm VariantAttributes vào Variants
+                foreach (var va in newVariantAttributes)
+                {
+                    va.Variant.VariantAttributes.Add(va);
+                }
+
+                // Xóa AttributeValues không còn được sử dụng
+                var usedAttributeValueIds = product.Variants
+                    .SelectMany(v => v.VariantAttributes)
+                    .Select(va => va.AttributeValueID)
+                    .Distinct()
+                    .ToHashSet();
+
+                var unusedAttributeValues = await _context.AttributeValues
+                    .Where(av => !usedAttributeValueIds.Contains(av.AttributeValueID))
+                    .ToListAsync();
+
+                foreach (var av in unusedAttributeValues)
+                {
+                    var isUsedElsewhere = await _context.VariantAttributes
+                        .AnyAsync(va => va.AttributeValueID == av.AttributeValueID);
+                    if (!isUsedElsewhere)
                     {
-                        VariantID = variant.VariantID,
-                        AttributeValueID = attrValue.AttributeValueID
-                    });
+                        _context.AttributeValues.Remove(av);
+                    }
                 }
-            }
 
-            // Xóa AttributeValues không còn được sử dụng
-            var usedAttributeValueIds = product.Variants
-                .SelectMany(v => v.VariantAttributes)
-                .Select(va => va.AttributeValueID)
-                .Distinct()
-                .ToHashSet();
+                // Xóa Attributes không còn được sử dụng
+                var usedAttributeIds = await _context.AttributeValues
+                    .Where(av => usedAttributeValueIds.Contains(av.AttributeValueID))
+                    .Select(av => av.AttributeID)
+                    .Distinct()
+                    .ToHashSetAsync();
 
-            var unusedAttributeValues = await _context.AttributeValues
-                .Where(av => !usedAttributeValueIds.Contains(av.AttributeValueID))
-                .ToListAsync();
+                var unusedAttributes = await _context.Attributes
+                    .Where(a => !usedAttributeIds.Contains(a.AttributeID))
+                    .ToListAsync();
 
-            foreach (var av in unusedAttributeValues)
-            {
-                var isUsedElsewhere = await _context.VariantAttributes
-                    .AnyAsync(va => va.AttributeValueID == av.AttributeValueID && va.Variant.ProductID != id);
-
-                if (!isUsedElsewhere)
+                foreach (var attr in unusedAttributes)
                 {
-                    _context.AttributeValues.Remove(av);
+                    var isUsedElsewhere = await _context.VariantAttributes
+                        .AnyAsync(va => va.AttributeID == attr.AttributeID) ||
+                        await _context.AttributeValues
+                        .AnyAsync(av => av.AttributeID == attr.AttributeID);
+
+                    if (!isUsedElsewhere)
+                    {
+                        _context.Attributes.Remove(attr);
+                    }
                 }
-            }
 
-            // Xóa Attributes không còn được sử dụng
-            var usedAttributeIds = (await _context.AttributeValues
-                .Where(av => usedAttributeValueIds.Contains(av.AttributeValueID))
-                .Select(av => av.AttributeID)
-                .Distinct()
-                .ToListAsync())
-                .ToHashSet();
+                // Lưu tất cả thay đổi một lần
+                await _context.SaveChangesAsync();
 
-            var unusedAttributes = await _context.Attributes
-                .Where(a => !usedAttributeIds.Contains(a.AttributeID))
-                .ToListAsync();
-
-            foreach (var attr in unusedAttributes)
-            {
-                var isUsedElsewhere = await _context.AttributeValues
-                    .AnyAsync(av => av.AttributeID == attr.AttributeID && usedAttributeValueIds.Contains(av.AttributeValueID));
-
-                if (!isUsedElsewhere)
+                // Cam kết giao dịch nếu sở hữu
+                if (ownsTransaction)
                 {
-                    _context.Attributes.Remove(attr);
+                    if (transaction != null)
+                    {
+                        await transaction.CommitAsync();
+                    }
                 }
             }
-
-            await _context.SaveChangesAsync();
+            catch
+            {
+                if (ownsTransaction && transaction != null)
+                {
+                    await transaction.RollbackAsync();
+                }
+                throw;
+            }
+            finally
+            {
+                if (ownsTransaction && transaction != null)
+                {
+                    await transaction.DisposeAsync();
+                }
+            }
         }
         public async Task DeleteProductAsync(int id)
         {
+            Console.WriteLine($"Starting repository deletion process for product ID: {id}");
+
+            // Tải sản phẩm với các quan hệ, sử dụng split query để tối ưu hiệu suất
             var product = await _context.Products
+                .AsSplitQuery()
                 .Include(p => p.Variants)
                 .ThenInclude(v => v.VariantAttributes)
                 .Include(p => p.AdditionalImages)
@@ -242,67 +298,87 @@ namespace LapTrinhWindows.Repositories.ProductRepository
 
             if (product == null)
             {
+                Console.WriteLine($"Product with ID {id} not found in repository");
                 throw new KeyNotFoundException($"Product with ID '{id}' not found.");
             }
 
+            Console.WriteLine($"Product found: {product.ProductName} (ID: {id}) with {product.Variants.Count} variants and {product.AdditionalImages.Count} additional images");
+
             // Xóa VariantAttributes và Variants
-            foreach (var variant in product.Variants)
+            foreach (var variant in product.Variants.ToList())
             {
+                Console.WriteLine($"Removing {variant.VariantAttributes.Count} VariantAttributes for variant ID: {variant.VariantID}");
                 _context.VariantAttributes.RemoveRange(variant.VariantAttributes);
+                Console.WriteLine($"Removing variant ID: {variant.VariantID}");
                 _context.Variants.Remove(variant);
             }
 
             // Xóa ProductImages
+            Console.WriteLine($"Removing {product.AdditionalImages.Count} additional images");
             _context.ProductImages.RemoveRange(product.AdditionalImages);
 
             // Xóa sản phẩm
+            Console.WriteLine($"Removing product ID: {id}");
             _context.Products.Remove(product);
 
-            // Xóa AttributeValues không còn được sử dụng
+            // Lưu thay đổi để xóa các bản ghi trên
+            Console.WriteLine("Saving initial changes to database");
+            await _context.SaveChangesAsync();
+
+            // Xóa tất cả AttributeValues liên quan
             var usedAttributeValueIds = product.Variants
                 .SelectMany(v => v.VariantAttributes)
                 .Select(va => va.AttributeValueID)
                 .Distinct()
                 .ToHashSet();
+            Console.WriteLine($"Collected {usedAttributeValueIds.Count} unique AttributeValueIDs to delete");
 
-            var unusedAttributeValues = await _context.AttributeValues
-                .Where(av => usedAttributeValueIds.Contains(av.AttributeValueID))
-                .ToListAsync();
-
-            foreach (var av in unusedAttributeValues)
+            if (usedAttributeValueIds.Any())
             {
-                var isUsedElsewhere = await _context.VariantAttributes
-                    .AnyAsync(va => va.AttributeValueID == av.AttributeValueID && va.Variant.ProductID != id);
-
-                if (!isUsedElsewhere)
-                {
-                    _context.AttributeValues.Remove(av);
-                }
+                var attributeValuesToDelete = await _context.AttributeValues
+                    .Where(av => usedAttributeValueIds.Contains(av.AttributeValueID))
+                    .ToListAsync();
+                Console.WriteLine($"Removing {attributeValuesToDelete.Count} AttributeValues");
+                _context.AttributeValues.RemoveRange(attributeValuesToDelete);
             }
 
-            // Xóa Attributes không còn được sử dụng
-            var usedAttributeIds = await _context.AttributeValues
-                .Where(av => usedAttributeValueIds.Contains(av.AttributeValueID))
-                .Select(av => av.AttributeID)
-                .Distinct()
-                .ToHashSetAsync();
+            // Xóa tất cả Attributes (vì chỉ có một sản phẩm, tất cả Attributes đều không còn cần thiết)
+            Console.WriteLine("Removing all Attributes");
+            var attributesToDelete = await _context.Attributes.ToListAsync();
+            Console.WriteLine($"Removing {attributesToDelete.Count} Attributes");
+            _context.Attributes.RemoveRange(attributesToDelete);
 
-            var unusedAttributes = await _context.Attributes
-                .Where(a => !usedAttributeIds.Contains(a.AttributeID))
-                .ToListAsync();
-
-            foreach (var attr in unusedAttributes)
-            {
-                var isUsedElsewhere = await _context.AttributeValues
-                    .AnyAsync(av => av.AttributeID == attr.AttributeID);
-
-                if (!isUsedElsewhere)
-                {
-                    _context.Attributes.Remove(attr);
-                }
-            }
-
+            // Lưu thay đổi cuối cùng
+            Console.WriteLine("Saving final changes to database");
             await _context.SaveChangesAsync();
+
+            // Kiểm tra sau khi xóa để đảm bảo database sạch
+            var remainingProducts = await _context.Products.AnyAsync();
+            var remainingVariants = await _context.Variants.AnyAsync();
+            var remainingVariantAttributes = await _context.VariantAttributes.AnyAsync();
+            var remainingAttributeValues = await _context.AttributeValues.AnyAsync();
+            var remainingAttributes = await _context.Attributes.AnyAsync();
+            var remainingProductImages = await _context.ProductImages.AnyAsync();
+
+            Console.WriteLine($"Post-deletion check: " +
+                $"Products: {remainingProducts}, " +
+                $"Variants: {remainingVariants}, " +
+                $"VariantAttributes: {remainingVariantAttributes}, " +
+                $"AttributeValues: {remainingAttributeValues}, " +
+                $"Attributes: {remainingAttributes}, " +
+                $"ProductImages: {remainingProductImages}");
+
+            if (remainingProducts || remainingVariants || remainingVariantAttributes ||
+                remainingAttributeValues || remainingAttributes || remainingProductImages)
+            {
+                Console.WriteLine("Warning: Some data remains in the database after deletion!");
+            }
+            else
+            {
+                Console.WriteLine("Database is clean: All related data successfully deleted");
+            }
+
+            Console.WriteLine($"Successfully deleted product ID {id} and all related data from repository");
         }
         public async Task<List<ProductImage>> GetProductImagesByProductIdAsync(int productId)
         {
@@ -317,6 +393,38 @@ namespace LapTrinhWindows.Repositories.ProductRepository
                 .AnyAsync(p => p.ImageKey == imageKey && p.ProductID != excludeProductId)
                 || await _context.ProductImages
                     .AnyAsync(pi => pi.ImageKey == imageKey && pi.ProductID != excludeProductId);
+        }
+        public async Task EnsureNoRelatedInvoicesAsync(int productId)
+        {
+            var variantSkus = await _context.Variants
+                .Where(v => v.ProductID == productId)
+                .Select(v => v.SKU)
+                .ToListAsync();
+
+            var hasInvoices = await _context.InvoiceDetails
+                .AnyAsync(id => variantSkus.Contains(id.SKU));
+
+            if (hasInvoices)
+            {
+                Console.WriteLine($"Cannot delete product ID {productId} because it is used in invoices.");
+                throw new InvalidOperationException($"Cannot delete product ID {productId} because it is used in invoices.");
+            }
+        }
+        public async Task EnsureNoRelatedBatchesAsync(int productId)
+        {
+            var variantSkus = await _context.Variants
+                .Where(v => v.ProductID == productId)
+                .Select(v => v.SKU)
+                .ToListAsync();
+
+            var hasBatches = await _context.Batches
+                .AnyAsync(b => variantSkus.Contains(b.SKU));
+
+            if (hasBatches)
+            {
+                Console.WriteLine("Cannot delete product ID {ProductId} because it has related batches.", productId);
+                throw new InvalidOperationException($"Cannot delete product ID {productId} because it has related batches.");
+            }
         }
     }
 }

@@ -6,11 +6,24 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace LapTrinhWindows.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class YourMigrationName : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.CreateTable(
+                name: "Attributes",
+                columns: table => new
+                {
+                    AttributeID = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AttributeName = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Attributes", x => x.AttributeID);
+                });
+
             migrationBuilder.CreateTable(
                 name: "Categories",
                 columns: table => new
@@ -69,23 +82,23 @@ namespace LapTrinhWindows.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Attributes",
+                name: "AttributeValues",
                 columns: table => new
                 {
-                    AttributeID = table.Column<int>(type: "int", nullable: false)
+                    AttributeValueID = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    CategoryID = table.Column<int>(type: "int", nullable: true)
+                    AttributeID = table.Column<int>(type: "int", nullable: false),
+                    Value = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Attributes", x => x.AttributeID);
+                    table.PrimaryKey("PK_AttributeValues", x => x.AttributeValueID);
                     table.ForeignKey(
-                        name: "FK_Attributes_Categories_CategoryID",
-                        column: x => x.CategoryID,
-                        principalTable: "Categories",
-                        principalColumn: "CategoryID",
-                        onDelete: ReferentialAction.SetNull);
+                        name: "FK_AttributeValues_Attributes_AttributeID",
+                        column: x => x.AttributeID,
+                        principalTable: "Attributes",
+                        principalColumn: "AttributeID",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -97,7 +110,8 @@ namespace LapTrinhWindows.Migrations
                     ProductName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     CategoryID = table.Column<int>(type: "int", nullable: false),
                     Discount = table.Column<double>(type: "float", nullable: false),
-                    ImageKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
+                    ImageKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    ImageUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -137,69 +151,24 @@ namespace LapTrinhWindows.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "AttributeValues",
-                columns: table => new
-                {
-                    AttributeValueID = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    AttributeID = table.Column<int>(type: "int", nullable: false),
-                    Value = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AttributeValues", x => x.AttributeValueID);
-                    table.ForeignKey(
-                        name: "FK_AttributeValues_Attributes_AttributeID",
-                        column: x => x.AttributeID,
-                        principalTable: "Attributes",
-                        principalColumn: "AttributeID",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "PointRedemptions",
-                columns: table => new
-                {
-                    PointRedemptionID = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    ProductID = table.Column<int>(type: "int", nullable: false),
-                    RedemptionName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    PointsRequired = table.Column<int>(type: "int", nullable: false),
-                    AvailableQuantity = table.Column<int>(type: "int", nullable: false),
-                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Status = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_PointRedemptions", x => x.PointRedemptionID);
-                    table.ForeignKey(
-                        name: "FK_PointRedemptions_Products_ProductID",
-                        column: x => x.ProductID,
-                        principalTable: "Products",
-                        principalColumn: "ProductID",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "ProductImage",
+                name: "ProductImages",
                 columns: table => new
                 {
                     ProductImageID = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     ProductID = table.Column<int>(type: "int", nullable: false),
                     ImageKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false)
+                    ImageUrl = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    OrdinalNumbers = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_ProductImage", x => x.ProductImageID);
+                    table.PrimaryKey("PK_ProductImages", x => x.ProductImageID);
                     table.ForeignKey(
-                        name: "FK_ProductImage_Products_ProductID",
+                        name: "FK_ProductImages_Products_ProductID",
                         column: x => x.ProductID,
                         principalTable: "Products",
-                        principalColumn: "ProductID",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "ProductID");
                 });
 
             migrationBuilder.CreateTable(
@@ -236,12 +205,13 @@ namespace LapTrinhWindows.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     ProductID = table.Column<int>(type: "int", nullable: false),
                     SKU = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    Price = table.Column<double>(type: "float", nullable: false),
-                    AvailableQuantity = table.Column<int>(type: "int", nullable: false)
+                    Price = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Stock = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Variants", x => x.VariantID);
+                    table.UniqueConstraint("AK_Variant_SKU", x => x.SKU);
                     table.ForeignKey(
                         name: "FK_Variants_Products_ProductID",
                         column: x => x.ProductID,
@@ -256,15 +226,17 @@ namespace LapTrinhWindows.Migrations
                 {
                     InvoiceID = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    EmployeeID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CustomerID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CashierStaff = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    CustomerID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     CreateAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Discount = table.Column<double>(type: "float", nullable: false),
                     PaymentMethod = table.Column<int>(type: "int", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
                     Total = table.Column<double>(type: "float", nullable: false),
-                    DeliveryAddress = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    DeliveryAddress = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     DeliveryStatus = table.Column<int>(type: "int", nullable: false),
+                    OrderType = table.Column<int>(type: "int", nullable: false),
+                    IsAnonymous = table.Column<bool>(type: "bit", nullable: false),
                     Feedback = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
                     Star = table.Column<int>(type: "int", nullable: false)
                 },
@@ -278,10 +250,57 @@ namespace LapTrinhWindows.Migrations
                         principalColumn: "CustomerID",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Invoices_Employees_EmployeeID",
-                        column: x => x.EmployeeID,
+                        name: "FK_Invoices_Employees_CashierStaff",
+                        column: x => x.CashierStaff,
                         principalTable: "Employees",
                         principalColumn: "EmployeeID",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Batches",
+                columns: table => new
+                {
+                    BatchID = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    SKU = table.Column<string>(type: "nvarchar(50)", nullable: false),
+                    ExpirationDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ProductionDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    AvailableQuantity = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Batches", x => x.BatchID);
+                    table.ForeignKey(
+                        name: "FK_Batches_Variants_SKU",
+                        column: x => x.SKU,
+                        principalTable: "Variants",
+                        principalColumn: "SKU",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PointRedemptions",
+                columns: table => new
+                {
+                    PointRedemptionID = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    SKU = table.Column<string>(type: "nvarchar(50)", nullable: false),
+                    RedemptionName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    PointsRequired = table.Column<int>(type: "int", nullable: false),
+                    AvailableQuantity = table.Column<int>(type: "int", nullable: false),
+                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PointRedemptions", x => x.PointRedemptionID);
+                    table.ForeignKey(
+                        name: "FK_PointRedemptions_Variants_SKU",
+                        column: x => x.SKU,
+                        principalTable: "Variants",
+                        principalColumn: "SKU",
                         onDelete: ReferentialAction.Restrict);
                 });
 
@@ -289,15 +308,15 @@ namespace LapTrinhWindows.Migrations
                 name: "VariantAttributes",
                 columns: table => new
                 {
+                    VariantID = table.Column<int>(type: "int", nullable: false),
+                    AttributeValueID = table.Column<int>(type: "int", nullable: false),
                     VariantAttributeID = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    VariantID = table.Column<int>(type: "int", nullable: false),
-                    AttributeID = table.Column<int>(type: "int", nullable: false),
-                    AttributeValueID = table.Column<int>(type: "int", nullable: false)
+                    AttributeID = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_VariantAttributes", x => x.VariantAttributeID);
+                    table.PrimaryKey("PK_VariantAttributes", x => new { x.VariantID, x.AttributeValueID });
                     table.ForeignKey(
                         name: "FK_VariantAttributes_AttributeValues_AttributeValueID",
                         column: x => x.AttributeValueID,
@@ -319,13 +338,37 @@ namespace LapTrinhWindows.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "InvoiceStatusHistories",
+                columns: table => new
+                {
+                    HistoryID = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    InvoiceID = table.Column<int>(type: "int", nullable: false),
+                    OldStatus = table.Column<int>(type: "int", nullable: false),
+                    NewStatus = table.Column<int>(type: "int", nullable: false),
+                    ChangedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ChangedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_InvoiceStatusHistories", x => x.HistoryID);
+                    table.ForeignKey(
+                        name: "FK_InvoiceStatusHistories_Invoices_InvoiceID",
+                        column: x => x.InvoiceID,
+                        principalTable: "Invoices",
+                        principalColumn: "InvoiceID",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "InvoiceDetails",
                 columns: table => new
                 {
                     InvoiceDetailID = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     InvoiceID = table.Column<int>(type: "int", nullable: false),
-                    ProductID = table.Column<int>(type: "int", nullable: false),
+                    SKU = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    BatchID = table.Column<int>(type: "int", nullable: false),
                     Quantity = table.Column<int>(type: "int", nullable: false),
                     Total = table.Column<double>(type: "float", nullable: false),
                     IsPointRedemption = table.Column<bool>(type: "bit", nullable: false),
@@ -334,6 +377,12 @@ namespace LapTrinhWindows.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_InvoiceDetails", x => x.InvoiceDetailID);
+                    table.ForeignKey(
+                        name: "FK_InvoiceDetails_Batches_BatchID",
+                        column: x => x.BatchID,
+                        principalTable: "Batches",
+                        principalColumn: "BatchID",
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_InvoiceDetails_Invoices_InvoiceID",
                         column: x => x.InvoiceID,
@@ -347,22 +396,22 @@ namespace LapTrinhWindows.Migrations
                         principalColumn: "PointRedemptionID",
                         onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
-                        name: "FK_InvoiceDetails_Products_ProductID",
-                        column: x => x.ProductID,
-                        principalTable: "Products",
-                        principalColumn: "ProductID",
+                        name: "FK_InvoiceDetails_Variants_SKU",
+                        column: x => x.SKU,
+                        principalTable: "Variants",
+                        principalColumn: "SKU",
                         onDelete: ReferentialAction.Restrict);
                 });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Attributes_CategoryID",
-                table: "Attributes",
-                column: "CategoryID");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AttributeValues_AttributeID",
                 table: "AttributeValues",
                 column: "AttributeID");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Batches_SKU",
+                table: "Batches",
+                column: "SKU");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Categories_CategoryName",
@@ -405,6 +454,11 @@ namespace LapTrinhWindows.Migrations
                 column: "RoleID");
 
             migrationBuilder.CreateIndex(
+                name: "IX_InvoiceDetails_BatchID",
+                table: "InvoiceDetails",
+                column: "BatchID");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_InvoiceDetails_InvoiceID",
                 table: "InvoiceDetails",
                 column: "InvoiceID");
@@ -415,9 +469,14 @@ namespace LapTrinhWindows.Migrations
                 column: "PointRedemptionID");
 
             migrationBuilder.CreateIndex(
-                name: "IX_InvoiceDetails_ProductID",
+                name: "IX_InvoiceDetails_SKU",
                 table: "InvoiceDetails",
-                column: "ProductID");
+                column: "SKU");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Invoices_CashierStaff",
+                table: "Invoices",
+                column: "CashierStaff");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Invoices_CreateAt",
@@ -430,14 +489,14 @@ namespace LapTrinhWindows.Migrations
                 column: "CustomerID");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Invoices_EmployeeID",
-                table: "Invoices",
-                column: "EmployeeID");
+                name: "IX_InvoiceStatusHistories_InvoiceID",
+                table: "InvoiceStatusHistories",
+                column: "InvoiceID");
 
             migrationBuilder.CreateIndex(
-                name: "IX_PointRedemptions_ProductID",
+                name: "IX_PointRedemptions_SKU",
                 table: "PointRedemptions",
-                column: "ProductID");
+                column: "SKU");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PointRedemptions_StartDate_EndDate",
@@ -450,8 +509,8 @@ namespace LapTrinhWindows.Migrations
                 column: "Status");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ProductImage_ProductID",
-                table: "ProductImage",
+                name: "IX_ProductImages_ProductID",
+                table: "ProductImages",
                 column: "ProductID");
 
             migrationBuilder.CreateIndex(
@@ -497,9 +556,20 @@ namespace LapTrinhWindows.Migrations
                 column: "VariantID");
 
             migrationBuilder.CreateIndex(
+                name: "IX_VariantAttributes_VariantID_AttributeValueID",
+                table: "VariantAttributes",
+                columns: new[] { "VariantID", "AttributeValueID" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Variants_ProductID",
                 table: "Variants",
                 column: "ProductID");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Variants_SKU",
+                table: "Variants",
+                column: "SKU",
+                unique: true);
         }
 
         /// <inheritdoc />
@@ -509,7 +579,10 @@ namespace LapTrinhWindows.Migrations
                 name: "InvoiceDetails");
 
             migrationBuilder.DropTable(
-                name: "ProductImage");
+                name: "InvoiceStatusHistories");
+
+            migrationBuilder.DropTable(
+                name: "ProductImages");
 
             migrationBuilder.DropTable(
                 name: "ProductTags");
@@ -518,10 +591,13 @@ namespace LapTrinhWindows.Migrations
                 name: "VariantAttributes");
 
             migrationBuilder.DropTable(
-                name: "Invoices");
+                name: "Batches");
 
             migrationBuilder.DropTable(
                 name: "PointRedemptions");
+
+            migrationBuilder.DropTable(
+                name: "Invoices");
 
             migrationBuilder.DropTable(
                 name: "Tags");

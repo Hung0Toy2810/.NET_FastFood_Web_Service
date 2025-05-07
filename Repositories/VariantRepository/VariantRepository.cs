@@ -7,6 +7,9 @@ namespace LapTrinhWindows.Repositories.VariantRepository
         Task<bool> SkuExistsAsync(string sku);
         Task UpdateVariantPriceBySkuAsync(string sku, decimal price);
         Task<Variant?> GetVariantBySkuAsync(string sku);
+        // get variant by id
+        Task<Variant?> GetVariantByIdAsync(int variantId);
+        
     }
     public class VariantRepository : IVariantRepository
     {
@@ -61,6 +64,13 @@ namespace LapTrinhWindows.Repositories.VariantRepository
                 .FirstOrDefaultAsync(v => v.SKU == sku);
 
             return variant;
+        }
+        public async Task<Variant?> GetVariantByIdAsync(int variantId)
+        {
+            return await _context.Variants
+                .Include(v => v.VariantAttributes)
+                .ThenInclude(va => va.AttributeValue)
+                .FirstOrDefaultAsync(v => v.VariantID == variantId);
         }
     }
 }

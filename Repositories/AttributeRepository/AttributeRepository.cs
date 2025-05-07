@@ -6,6 +6,7 @@ namespace LapTrinhWindows.Repositories.VariantRepository
         Task<LapTrinhWindows.Models.Attribute?> GetAttributeByNameAsync(string attributeName);
         Task AddAttributeAsync(LapTrinhWindows.Models.Attribute attribute);
     }
+
     public class AttributeRepository : IAttributeRepository
     {
         private readonly ApplicationDbContext _context;
@@ -29,6 +30,7 @@ namespace LapTrinhWindows.Repositories.VariantRepository
         public async Task AddAttributeAsync(LapTrinhWindows.Models.Attribute attribute)
         {
             await _context.Attributes.AddAsync(attribute);
+            
         }
     }
 }

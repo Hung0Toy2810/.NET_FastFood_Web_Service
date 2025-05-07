@@ -1,196 +1,191 @@
+using LapTrinhWindows.Models.dto;
+using LapTrinhWindows.Models;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
 namespace LapTrinhWindows.Repositories.InvoiceRepository
 {
     public interface IInvoiceRepository
     {
+        Task<Invoice> CreateInvoiceAsync(Invoice invoice);
+        Task<Batch?> GetRandomBatchAsync(string sku, int requiredQuantity);
+        Task UpdateBatchAsync(Batch batch);
+        Task UpdateCustomerAsync(Customer customer);
         Task<Invoice?> GetInvoiceByIdAsync(int invoiceId);
-        Task<List<Invoice>> GetAllInvoicesAsync(long offset = 0, long limit = 100);
-        Task<bool> AddInvoiceAsync(Invoice invoice);
-        Task<bool> UpdateInvoiceAsync(Invoice invoice);
+        Task<List<Invoice>> GetInvoicesByCustomerIdAsync(Guid? customerId);
+        Task<List<Invoice>> GetInvoicesByFilterAsync(
+            InvoiceStatus? status = null,
+            OrderType? orderType = null,
+            DateTime? startDate = null,
+            DateTime? endDate = null);
+        Task UpdateInvoiceAsync(Invoice invoice);
         Task<bool> DeleteInvoiceAsync(int invoiceId);
-        // get invoice by customer id
-        Task<List<Invoice>> GetInvoicesByCustomerIdAsync(Guid customerId);
-        // get invoice by employee id
-        Task<List<Invoice>> GetInvoicesByEmployeeIdAsync(Guid employeeId);
-        // get invoice by customerid if where InvoiceStatus = InvoiceStatus(input)
-        Task<List<Invoice>> GetInvoicesByCustomerIdAndStatusAsync(Guid customerId, InvoiceStatus status);
-        // get invoice by employeeid if where InvoiceStatus = InvoiceStatus(input)
-        Task<List<Invoice>> GetInvoicesByEmployeeIdAndStatusAsync(Guid employeeId, InvoiceStatus status);
-        // get invoice by employeeid if where InvoiceStatus = InvoiceStatus(input) and DeliveryStatus = DeliveryStatus(input)
-        Task<List<Invoice>> GetInvoicesByEmployeeIdAndStatusAndDeliveryStatusAsync(Guid employeeId, InvoiceStatus status, DeliveryStatus deliveryStatus);
-        // get invoice by customerid if where InvoiceStatus = InvoiceStatus(input) and DeliveryStatus = DeliveryStatus(input)
-        Task<List<Invoice>> GetInvoicesByCustomerIdAndStatusAndDeliveryStatusAsync(Guid customerId, InvoiceStatus status, DeliveryStatus deliveryStatus);
+        Task<bool> InvoiceExistsAsync(int invoiceId);
+        Task<List<Invoice>> GetPendingInvoicesAsync();
     }
 
     public class InvoiceRepository : IInvoiceRepository
     {
         private readonly ApplicationDbContext _context;
+        private readonly Random _random;
 
         public InvoiceRepository(ApplicationDbContext context)
         {
-            _context = context;
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _random = new Random();
+        }
+
+        public async Task<Invoice> CreateInvoiceAsync(Invoice invoice)
+        {
+            if (invoice == null) throw new ArgumentNullException(nameof(invoice));
+
+            await _context.Invoices.AddAsync(invoice);
+            await _context.SaveChangesAsync();
+            return invoice;
+        }
+
+        public async Task<Batch?> GetRandomBatchAsync(string sku, int requiredQuantity)
+        {
+            if (string.IsNullOrEmpty(sku)) throw new ArgumentException("SKU cannot be null or empty.", nameof(sku));
+            if (requiredQuantity <= 0) throw new ArgumentException("Required quantity must be greater than 0.", nameof(requiredQuantity));
+
+            var batches = await _context.Batches
+                .Where(b => b.SKU == sku && b.AvailableQuantity >= requiredQuantity)
+                .ToListAsync();
+            if (!batches.Any())
+            {
+                return null;
+            }
+            return batches[_random.Next(batches.Count)];
+        }
+
+        public async Task UpdateBatchAsync(Batch batch)
+        {
+            if (batch == null) throw new ArgumentNullException(nameof(batch));
+
+            _context.Batches.Update(batch);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task UpdateCustomerAsync(Customer customer)
+        {
+            if (customer == null) throw new ArgumentNullException(nameof(customer));
+
+            _context.Customers.Update(customer);
+            await _context.SaveChangesAsync();
         }
 
         public async Task<Invoice?> GetInvoiceByIdAsync(int invoiceId)
         {
-            var invoice = await _context.Invoices
-                .Include(i => i.InvoiceDetails)
-                .ThenInclude(id => id.Product)
-                .FirstOrDefaultAsync(i => i.InvoiceID == invoiceId);
-
-            return invoice ?? null;
-        }
-
-        public async Task<List<Invoice>> GetAllInvoicesAsync(long offset = 0, long limit = 100)
-        {
-            if (offset < 0) throw new ArgumentException("Offset must be greater than or equal to 0.", nameof(offset));
-            if (limit <= 0) throw new ArgumentException("Limit must be greater than 0.", nameof(limit));
+            if (invoiceId <= 0) throw new ArgumentException("Invoice ID must be greater than 0.", nameof(invoiceId));
 
             return await _context.Invoices
                 .Include(i => i.InvoiceDetails)
-                .ThenInclude(id => id.Product)
-                .Skip((int)offset)
-                .Take((int)limit)
-                .ToListAsync();
+                .Include(i => i.Customer)
+                .Include(i => i.Employee)
+                .FirstOrDefaultAsync(i => i.InvoiceID == invoiceId);
         }
-        public async Task<bool> AddInvoiceAsync(Invoice invoice)
+
+        public async Task<List<Invoice>> GetInvoicesByCustomerIdAsync(Guid? customerId)
         {
-            if (invoice == null) throw new ArgumentNullException(nameof(invoice));
-            //begin transaction
-            using (var transaction = await _context.Database.BeginTransactionAsync())
+            if (customerId.HasValue)
             {
-                try
-                {
-                    await _context.Invoices.AddAsync(invoice);
-                    var result = await _context.SaveChangesAsync() > 0;
-                    await transaction.CommitAsync();
-                    return result;
-                }
-                catch (Exception)
-                {
-                    await transaction.RollbackAsync();
-                    throw;
-                }
+                return await _context.Invoices
+                    .Where(i => i.CustomerID == customerId)
+                    .Include(i => i.InvoiceDetails)
+                    .OrderByDescending(i => i.CreateAt)
+                    .ToListAsync();
+            }
+            else
+            {
+                return await _context.Invoices
+                    .Where(i => i.CustomerID == null)
+                    .Include(i => i.InvoiceDetails)
+                    .OrderByDescending(i => i.CreateAt)
+                    .ToListAsync();
             }
         }
 
-        public async Task<bool> UpdateInvoiceAsync(Invoice invoice)
+        public async Task<List<Invoice>> GetInvoicesByFilterAsync(
+            InvoiceStatus? status = null,
+            OrderType? orderType = null,
+            DateTime? startDate = null,
+            DateTime? endDate = null)
+        {
+            var query = _context.Invoices
+                .Include(i => i.InvoiceDetails)
+                .Include(i => i.Customer)
+                .Include(i => i.Employee)
+                .AsQueryable();
+
+            if (status.HasValue)
+            {
+                query = query.Where(i => i.Status == status.Value);
+            }
+
+            if (orderType.HasValue)
+            {
+                query = query.Where(i => i.OrderType == orderType.Value);
+            }
+
+            if (startDate.HasValue)
+            {
+                query = query.Where(i => i.CreateAt >= startDate.Value);
+            }
+
+            if (endDate.HasValue)
+            {
+                query = query.Where(i => i.CreateAt <= endDate.Value);
+            }
+
+            return await query
+                .OrderByDescending(i => i.CreateAt)
+                .ToListAsync();
+        }
+
+        public async Task UpdateInvoiceAsync(Invoice invoice)
         {
             if (invoice == null) throw new ArgumentNullException(nameof(invoice));
-            //begin transaction
-            using (var transaction = await _context.Database.BeginTransactionAsync())
-            {
-                try
-                {
-                    _context.Invoices.Update(invoice);
-                    var result = await _context.SaveChangesAsync() > 0;
-                    await transaction.CommitAsync();
-                    return result;
-                }
-                catch (Exception)
-                {
-                    await transaction.RollbackAsync();
-                    throw;
-                }
-            }
+
+            _context.Invoices.Update(invoice);
+            await _context.SaveChangesAsync();
         }
 
         public async Task<bool> DeleteInvoiceAsync(int invoiceId)
         {
-            if (invoiceId <= 0) throw new ArgumentException("ID must be greater than 0.", nameof(invoiceId));
-            //begin transaction
-            using (var transaction = await _context.Database.BeginTransactionAsync())
+            if (invoiceId <= 0) throw new ArgumentException("Invoice ID must be greater than 0.", nameof(invoiceId));
+
+            var invoice = await _context.Invoices.FindAsync(invoiceId);
+            if (invoice == null)
             {
-                try
-                {
-                    var invoice = await GetInvoiceByIdAsync(invoiceId);
-                    if (invoice == null) throw new InvalidOperationException("Invoice not found.");
-
-                    _context.Invoices.Remove(invoice);
-                    var result = await _context.SaveChangesAsync() > 0;
-                    await transaction.CommitAsync();
-                    return result;
-                }
-                catch (Exception)
-                {
-                    await transaction.RollbackAsync();
-                    throw;
-                }
+                return false;
             }
+
+            // Soft delete by setting status to Cancelled
+            invoice.Status = InvoiceStatus.Cancelled;
+            _context.Invoices.Update(invoice);
+            await _context.SaveChangesAsync();
+            return true;
         }
-        public async Task<List<Invoice>> GetInvoicesByCustomerIdAsync(Guid customerId)
+
+        public async Task<bool> InvoiceExistsAsync(int invoiceId)
         {
-            if (customerId == Guid.Empty) throw new ArgumentException("Customer ID cannot be empty.", nameof(customerId));
-            return await _context.Invoices
-                .Include(i => i.InvoiceDetails)
-                .ThenInclude(id => id.Product)
-                .Where(i => i.CustomerID == customerId)
-                .ToListAsync();
+            if (invoiceId <= 0) throw new ArgumentException("Invoice ID must be greater than 0.", nameof(invoiceId));
+
+            return await _context.Invoices.AnyAsync(i => i.InvoiceID == invoiceId);
         }
-        public async Task<List<Invoice>> GetInvoicesByEmployeeIdAsync(Guid employeeId)
+
+        public async Task<List<Invoice>> GetPendingInvoicesAsync()
         {
-            if (employeeId == Guid.Empty) throw new ArgumentException("Employee ID cannot be empty.", nameof(employeeId));
             return await _context.Invoices
+                .Where(i => i.Status == InvoiceStatus.Pending)
                 .Include(i => i.InvoiceDetails)
-                .ThenInclude(id => id.Product)
-                .Where(i => i.EmployeeID == employeeId)
-                .ToListAsync();
-        }
-        public async Task<List<Invoice>> GetInvoicesByCustomerIdAndStatusAsync(Guid customerId, InvoiceStatus status)
-        {
-            if (customerId == Guid.Empty) 
-                throw new ArgumentException("Customer ID cannot be empty.", nameof(customerId));
-
-            // Convert enum to int since it's stored as number in DB
-            int statusValue = (int)status;
-
-            return await _context.Invoices
-                .Include(i => i.InvoiceDetails)
-                .ThenInclude(id => id.Product)
-                .Where(i => i.CustomerID == customerId && (int)i.Status == statusValue)
-                .ToListAsync();
-        }
-        public async Task<List<Invoice>> GetInvoicesByEmployeeIdAndStatusAsync(Guid employeeId, InvoiceStatus status)
-        {
-            if (employeeId == Guid.Empty) 
-                throw new ArgumentException("Employee ID cannot be empty.", nameof(employeeId));
-
-            // Convert enum to int since it's stored as number in DB
-            int statusValue = (int)status;
-
-            return await _context.Invoices
-                .Include(i => i.InvoiceDetails)
-                .ThenInclude(id => id.Product)
-                .Where(i => i.EmployeeID == employeeId && (int)i.Status == statusValue)
-                .ToListAsync();
-        }
-        public async Task<List<Invoice>> GetInvoicesByEmployeeIdAndStatusAndDeliveryStatusAsync(Guid employeeId, InvoiceStatus status, DeliveryStatus deliveryStatus)
-        {
-            if (employeeId == Guid.Empty) 
-                throw new ArgumentException("Employee ID cannot be empty.", nameof(employeeId));
-
-            // Convert enum to int since it's stored as number in DB
-            int statusValue = (int)status;
-            int deliveryStatusValue = (int)deliveryStatus;
-
-            return await _context.Invoices
-                .Include(i => i.InvoiceDetails)
-                .ThenInclude(id => id.Product)
-                .Where(i => i.EmployeeID == employeeId && (int)i.Status == statusValue && (int)i.DeliveryStatus == deliveryStatusValue)
-                .ToListAsync();
-        }
-        public async Task<List<Invoice>> GetInvoicesByCustomerIdAndStatusAndDeliveryStatusAsync(Guid customerId, InvoiceStatus status, DeliveryStatus deliveryStatus)
-        {
-            if (customerId == Guid.Empty) 
-                throw new ArgumentException("Customer ID cannot be empty.", nameof(customerId));
-
-            // Convert enum to int since it's stored as number in DB
-            int statusValue = (int)status;
-            int deliveryStatusValue = (int)deliveryStatus;
-
-            return await _context.Invoices
-                .Include(i => i.InvoiceDetails)
-                .ThenInclude(id => id.Product)
-                .Where(i => i.CustomerID == customerId && (int)i.Status == statusValue && (int)i.DeliveryStatus == deliveryStatusValue)
+                .Include(i => i.Customer)
+                .Include(i => i.Employee)
+                .OrderBy(i => i.CreateAt)
                 .ToListAsync();
         }
     }

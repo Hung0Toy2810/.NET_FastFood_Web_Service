@@ -3,9 +3,6 @@
 //     ('Staff'),
 //     ('Manager');
 
-
-
-
 using LapTrinhWindows.Repositories.EmployeeRepository;
 using LapTrinhWindows.Models;
 using LapTrinhWindows.Models.dto.CustomerDTO;
@@ -487,33 +484,7 @@ namespace LapTrinhWindows.Services
                 throw;
             }
         }
-        // public async Task<List<EmployeeProfileDTO>> SearchEmployeesAsync(string searchTerm)
-        // {
-        //     if (string.IsNullOrWhiteSpace(searchTerm))
-        //         throw new ArgumentException("Search term cannot be empty.", nameof(searchTerm));
-
-        //     try 
-        //     {
-        //         var employeeIds = await _employeeRepository.SearchEmployeesAsync(searchTerm);
-        //         var profiles = new List<EmployeeProfileDTO>();
-                
-        //         foreach(var id in employeeIds)
-        //         {
-        //             var profile = await GetEmployeeProfileByIdAsync(id);
-        //             profiles.Add(profile);
-        //         }
-
-        //         _logger.LogInformation("Found {Count} employees matching search term '{SearchTerm}'", 
-        //             profiles.Count, searchTerm);
-                
-        //         return profiles;
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         _logger.LogError(ex, "Error searching employees with term '{SearchTerm}'", searchTerm);
-        //         throw;
-        //     }
-        // }
+        
         
     }
 }

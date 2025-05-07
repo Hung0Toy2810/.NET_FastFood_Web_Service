@@ -12,15 +12,15 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LapTrinhWindows.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250424171448_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20250505181501_YourMigrationName")]
+    partial class YourMigrationName
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.3")
+                .HasAnnotation("ProductVersion", "9.0.4")
                 .HasAnnotation("Proxies:ChangeTracking", false)
                 .HasAnnotation("Proxies:CheckEquality", false)
                 .HasAnnotation("Proxies:LazyLoading", true)
@@ -36,17 +36,12 @@ namespace LapTrinhWindows.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AttributeID"));
 
-                    b.Property<int?>("CategoryID")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
+                    b.Property<string>("AttributeName")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
                     b.HasKey("AttributeID");
-
-                    b.HasIndex("CategoryID");
 
                     b.ToTable("Attributes");
                 });
@@ -72,6 +67,34 @@ namespace LapTrinhWindows.Migrations
                     b.HasIndex("AttributeID");
 
                     b.ToTable("AttributeValues");
+                });
+
+            modelBuilder.Entity("LapTrinhWindows.Models.Batch", b =>
+                {
+                    b.Property<int>("BatchID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BatchID"));
+
+                    b.Property<int>("AvailableQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ExpirationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ProductionDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SKU")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("BatchID");
+
+                    b.HasIndex("SKU");
+
+                    b.ToTable("Batches");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.Category", b =>
@@ -232,16 +255,19 @@ namespace LapTrinhWindows.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("InvoiceID"));
 
+                    b.Property<Guid?>("CashierStaff")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreateAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("CustomerID")
+                    b.Property<Guid?>("CustomerID")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("DeliveryAddress")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("DeliveryStatus")
                         .HasColumnType("int");
@@ -249,13 +275,16 @@ namespace LapTrinhWindows.Migrations
                     b.Property<double>("Discount")
                         .HasColumnType("float");
 
-                    b.Property<Guid>("EmployeeID")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("Feedback")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IsAnonymous")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("OrderType")
+                        .HasColumnType("int");
 
                     b.Property<int>("PaymentMethod")
                         .HasColumnType("int");
@@ -271,11 +300,11 @@ namespace LapTrinhWindows.Migrations
 
                     b.HasKey("InvoiceID");
 
+                    b.HasIndex("CashierStaff");
+
                     b.HasIndex("CreateAt");
 
                     b.HasIndex("CustomerID");
-
-                    b.HasIndex("EmployeeID");
 
                     b.ToTable("Invoices");
                 });
@@ -288,6 +317,9 @@ namespace LapTrinhWindows.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("InvoiceDetailID"));
 
+                    b.Property<int>("BatchID")
+                        .HasColumnType("int");
+
                     b.Property<int>("InvoiceID")
                         .HasColumnType("int");
 
@@ -297,24 +329,58 @@ namespace LapTrinhWindows.Migrations
                     b.Property<int?>("PointRedemptionID")
                         .HasColumnType("int");
 
-                    b.Property<int>("ProductID")
-                        .HasColumnType("int");
-
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
+
+                    b.Property<string>("SKU")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<double>("Total")
                         .HasColumnType("float");
 
                     b.HasKey("InvoiceDetailID");
 
+                    b.HasIndex("BatchID");
+
                     b.HasIndex("InvoiceID");
 
                     b.HasIndex("PointRedemptionID");
 
-                    b.HasIndex("ProductID");
+                    b.HasIndex("SKU");
 
                     b.ToTable("InvoiceDetails");
+                });
+
+            modelBuilder.Entity("LapTrinhWindows.Models.InvoiceStatusHistory", b =>
+                {
+                    b.Property<int>("HistoryID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("HistoryID"));
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ChangedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("InvoiceID")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NewStatus")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OldStatus")
+                        .HasColumnType("int");
+
+                    b.HasKey("HistoryID");
+
+                    b.HasIndex("InvoiceID");
+
+                    b.ToTable("InvoiceStatusHistories");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.PointRedemption", b =>
@@ -334,13 +400,14 @@ namespace LapTrinhWindows.Migrations
                     b.Property<int>("PointsRequired")
                         .HasColumnType("int");
 
-                    b.Property<int>("ProductID")
-                        .HasColumnType("int");
-
                     b.Property<string>("RedemptionName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SKU")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
@@ -350,7 +417,7 @@ namespace LapTrinhWindows.Migrations
 
                     b.HasKey("PointRedemptionID");
 
-                    b.HasIndex("ProductID");
+                    b.HasIndex("SKU");
 
                     b.HasIndex("Status");
 
@@ -378,6 +445,10 @@ namespace LapTrinhWindows.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("ProductName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -401,15 +472,18 @@ namespace LapTrinhWindows.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ProductImageID"));
 
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<string>("ImageKey")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("OrdinalNumbers")
+                        .HasColumnType("int");
 
                     b.Property<int>("ProductID")
                         .HasColumnType("int");
@@ -418,7 +492,7 @@ namespace LapTrinhWindows.Migrations
 
                     b.HasIndex("ProductID");
 
-                    b.ToTable("ProductImage");
+                    b.ToTable("ProductImages");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.ProductTag", b =>
@@ -473,11 +547,8 @@ namespace LapTrinhWindows.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VariantID"));
 
-                    b.Property<int>("AvailableQuantity")
-                        .HasColumnType("int");
-
-                    b.Property<double>("Price")
-                        .HasColumnType("float");
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("ProductID")
                         .HasColumnType("int");
@@ -487,31 +558,40 @@ namespace LapTrinhWindows.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int>("Stock")
+                        .HasColumnType("int");
+
                     b.HasKey("VariantID");
 
+                    b.HasAlternateKey("SKU")
+                        .HasName("AK_Variant_SKU");
+
                     b.HasIndex("ProductID");
+
+                    b.HasIndex("SKU")
+                        .IsUnique();
 
                     b.ToTable("Variants");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.VariantAttribute", b =>
                 {
+                    b.Property<int>("VariantID")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AttributeValueID")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AttributeID")
+                        .HasColumnType("int");
+
                     b.Property<int>("VariantAttributeID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("VariantAttributeID"));
 
-                    b.Property<int>("AttributeID")
-                        .HasColumnType("int");
-
-                    b.Property<int>("AttributeValueID")
-                        .HasColumnType("int");
-
-                    b.Property<int>("VariantID")
-                        .HasColumnType("int");
-
-                    b.HasKey("VariantAttributeID");
+                    b.HasKey("VariantID", "AttributeValueID");
 
                     b.HasIndex("AttributeID");
 
@@ -519,17 +599,9 @@ namespace LapTrinhWindows.Migrations
 
                     b.HasIndex("VariantID");
 
+                    b.HasIndex("VariantID", "AttributeValueID");
+
                     b.ToTable("VariantAttributes");
-                });
-
-            modelBuilder.Entity("LapTrinhWindows.Models.Attribute", b =>
-                {
-                    b.HasOne("LapTrinhWindows.Models.Category", "Category")
-                        .WithMany("Attributes")
-                        .HasForeignKey("CategoryID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Category");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.AttributeValue", b =>
@@ -541,6 +613,18 @@ namespace LapTrinhWindows.Migrations
                         .IsRequired();
 
                     b.Navigation("Attribute");
+                });
+
+            modelBuilder.Entity("LapTrinhWindows.Models.Batch", b =>
+                {
+                    b.HasOne("LapTrinhWindows.Models.Variant", "Variant")
+                        .WithMany("Batches")
+                        .HasForeignKey("SKU")
+                        .HasPrincipalKey("SKU")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Variant");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.Employee", b =>
@@ -556,17 +640,15 @@ namespace LapTrinhWindows.Migrations
 
             modelBuilder.Entity("LapTrinhWindows.Models.Invoice", b =>
                 {
+                    b.HasOne("LapTrinhWindows.Models.Employee", "Employee")
+                        .WithMany("Invoices")
+                        .HasForeignKey("CashierStaff")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("LapTrinhWindows.Models.Customer", "Customer")
                         .WithMany("Invoices")
                         .HasForeignKey("CustomerID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("LapTrinhWindows.Models.Employee", "Employee")
-                        .WithMany("Invoices")
-                        .HasForeignKey("EmployeeID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Customer");
 
@@ -575,6 +657,12 @@ namespace LapTrinhWindows.Migrations
 
             modelBuilder.Entity("LapTrinhWindows.Models.InvoiceDetail", b =>
                 {
+                    b.HasOne("LapTrinhWindows.Models.Batch", "Batch")
+                        .WithMany("InvoiceDetails")
+                        .HasForeignKey("BatchID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("LapTrinhWindows.Models.Invoice", "Invoice")
                         .WithMany("InvoiceDetails")
                         .HasForeignKey("InvoiceID")
@@ -586,28 +674,43 @@ namespace LapTrinhWindows.Migrations
                         .HasForeignKey("PointRedemptionID")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("LapTrinhWindows.Models.Product", "Product")
+                    b.HasOne("LapTrinhWindows.Models.Variant", "Variant")
                         .WithMany("InvoiceDetails")
-                        .HasForeignKey("ProductID")
+                        .HasForeignKey("SKU")
+                        .HasPrincipalKey("SKU")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Batch");
 
                     b.Navigation("Invoice");
 
                     b.Navigation("PointRedemption");
 
-                    b.Navigation("Product");
+                    b.Navigation("Variant");
+                });
+
+            modelBuilder.Entity("LapTrinhWindows.Models.InvoiceStatusHistory", b =>
+                {
+                    b.HasOne("LapTrinhWindows.Models.Invoice", "Invoice")
+                        .WithMany("InvoiceStatusHistories")
+                        .HasForeignKey("InvoiceID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.PointRedemption", b =>
                 {
-                    b.HasOne("LapTrinhWindows.Models.Product", "Product")
+                    b.HasOne("LapTrinhWindows.Models.Variant", "Variant")
                         .WithMany("PointRedemptions")
-                        .HasForeignKey("ProductID")
+                        .HasForeignKey("SKU")
+                        .HasPrincipalKey("SKU")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Product");
+                    b.Navigation("Variant");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.Product", b =>
@@ -626,7 +729,7 @@ namespace LapTrinhWindows.Migrations
                     b.HasOne("LapTrinhWindows.Models.Product", "Product")
                         .WithMany("AdditionalImages")
                         .HasForeignKey("ProductID")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("Product");
@@ -701,10 +804,13 @@ namespace LapTrinhWindows.Migrations
                     b.Navigation("VariantAttributes");
                 });
 
+            modelBuilder.Entity("LapTrinhWindows.Models.Batch", b =>
+                {
+                    b.Navigation("InvoiceDetails");
+                });
+
             modelBuilder.Entity("LapTrinhWindows.Models.Category", b =>
                 {
-                    b.Navigation("Attributes");
-
                     b.Navigation("Products");
                 });
 
@@ -726,6 +832,8 @@ namespace LapTrinhWindows.Migrations
             modelBuilder.Entity("LapTrinhWindows.Models.Invoice", b =>
                 {
                     b.Navigation("InvoiceDetails");
+
+                    b.Navigation("InvoiceStatusHistories");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.PointRedemption", b =>
@@ -736,10 +844,6 @@ namespace LapTrinhWindows.Migrations
             modelBuilder.Entity("LapTrinhWindows.Models.Product", b =>
                 {
                     b.Navigation("AdditionalImages");
-
-                    b.Navigation("InvoiceDetails");
-
-                    b.Navigation("PointRedemptions");
 
                     b.Navigation("ProductTags");
 
@@ -753,6 +857,12 @@ namespace LapTrinhWindows.Migrations
 
             modelBuilder.Entity("LapTrinhWindows.Models.Variant", b =>
                 {
+                    b.Navigation("Batches");
+
+                    b.Navigation("InvoiceDetails");
+
+                    b.Navigation("PointRedemptions");
+
                     b.Navigation("VariantAttributes");
                 });
 #pragma warning restore 612, 618

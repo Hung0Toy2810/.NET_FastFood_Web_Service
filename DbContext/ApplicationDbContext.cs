@@ -23,11 +23,18 @@ namespace LapTrinhWindows.Context
         public DbSet<PointRedemption> PointRedemptions { get; set; }
         public DbSet<ProductTag> ProductTags { get; set; }
         public DbSet<Tag> Tags { get; set; }
+        public DbSet<InvoiceStatusHistory> InvoiceStatusHistories { get; set; }
         //ProductImages
         public DbSet<ProductImage> ProductImages { get; set; }
+        public DbSet<Batch> Batches { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<InvoiceStatusHistory>()
+                .HasOne(ish => ish.Invoice)
+                .WithMany(i => i.InvoiceStatusHistories)
+                .HasForeignKey(ish => ish.InvoiceID)
+                .OnDelete(DeleteBehavior.Cascade);
             // EmployeeRole 1-n Employee
             modelBuilder.Entity<Employee>()
                 .HasOne(e => e.EmployeeRole)
@@ -39,7 +46,7 @@ namespace LapTrinhWindows.Context
             modelBuilder.Entity<Invoice>()
                 .HasOne(i => i.Employee)
                 .WithMany(e => e.Invoices)
-                .HasForeignKey(i => i.EmployeeID)
+                .HasForeignKey(i => i.CashierStaff)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Customer 1-n Invoice
@@ -56,11 +63,11 @@ namespace LapTrinhWindows.Context
                 .HasForeignKey(d => d.InvoiceID)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // InvoiceDetail 1-n Product
+            // InvoiceDetail 1-n Variant
             modelBuilder.Entity<InvoiceDetail>()
-                .HasOne(d => d.Product)
-                .WithMany(p => p.InvoiceDetails)
-                .HasForeignKey(d => d.ProductID)
+                .HasOne(d => d.Variant)
+                .WithMany(v => v.InvoiceDetails)
+                .HasForeignKey(d => d.SKU)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Category 1-n Product
@@ -119,12 +126,12 @@ namespace LapTrinhWindows.Context
                 .WithMany(t => t.ProductTags)
                 .HasForeignKey(pt => pt.TagID)
                 .OnDelete(DeleteBehavior.Restrict);
-
-            // Product 1-n PointRedemption
+            // PointRedemption 1-n Variant
             modelBuilder.Entity<PointRedemption>()
-                .HasOne(pr => pr.Product)
-                .WithMany(p => p.PointRedemptions)
-                .HasForeignKey(pr => pr.ProductID)
+                .HasOne(pr => pr.Variant)
+                .WithMany(v => v.PointRedemptions)  
+                .HasForeignKey(pr => pr.SKU)
+                .HasPrincipalKey(v => v.SKU)         
                 .OnDelete(DeleteBehavior.Restrict);
 
             // InvoiceDetail 1-n PointRedemption
@@ -138,15 +145,29 @@ namespace LapTrinhWindows.Context
                 .HasOne(pi => pi.Product)
                 .WithMany(p => p.AdditionalImages)
                 .HasForeignKey(pi => pi.ProductID)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
+            // Batch 1-n Variant
+            modelBuilder.Entity<Batch>()
+                .HasOne(b => b.Variant)
+                .WithMany(v => v.Batches)
+                .HasForeignKey(b => b.SKU)
+                .HasPrincipalKey(v => v.SKU)
+                .OnDelete(DeleteBehavior.Restrict);
+            // InvoiceDetail 1-n Variant
+            modelBuilder.Entity<InvoiceDetail>()
+                .HasOne(d => d.Variant)
+                .WithMany(v => v.InvoiceDetails)
+                .HasForeignKey(d => d.SKU)
+                .HasPrincipalKey(v => v.SKU)  
+                .OnDelete(DeleteBehavior.Restrict);
 
-
+            
             // Indexes for foreign keys and unique constraints
             modelBuilder.Entity<Employee>().HasIndex(e => e.RoleID);
-            modelBuilder.Entity<Invoice>().HasIndex(i => i.EmployeeID);
+            modelBuilder.Entity<Invoice>().HasIndex(i => i.CashierStaff);
             modelBuilder.Entity<Invoice>().HasIndex(i => i.CustomerID);
             modelBuilder.Entity<InvoiceDetail>().HasIndex(d => d.InvoiceID);
-            modelBuilder.Entity<InvoiceDetail>().HasIndex(d => d.ProductID);
+            modelBuilder.Entity<InvoiceDetail>().HasIndex(d => d.SKU);
             modelBuilder.Entity<Product>().HasIndex(p => p.CategoryID);
             modelBuilder.Entity<Customer>().HasIndex(c => c.PhoneNumber).IsUnique();
             modelBuilder.Entity<Employee>().HasIndex(e => e.PhoneNumber).IsUnique(); 
@@ -162,23 +183,21 @@ namespace LapTrinhWindows.Context
             modelBuilder.Entity<ProductTag>().HasIndex(pt => pt.TagID);
             modelBuilder.Entity<ProductTag>().HasIndex(pt => pt.ProductID);
             modelBuilder.Entity<InvoiceDetail>().HasIndex(id => id.PointRedemptionID);
-            modelBuilder.Entity<PointRedemption>().HasIndex(pr => pr.ProductID);
+            modelBuilder.Entity<PointRedemption>().HasIndex(pr => pr.SKU);
             modelBuilder.Entity<PointRedemption>().HasIndex(pr => new { pr.StartDate, pr.EndDate });
             modelBuilder.Entity<Customer>().HasIndex(c => c.Points);
             modelBuilder.Entity<EmployeeRole>().HasIndex(r => r.RoleName).IsUnique();
             modelBuilder.Entity<Invoice>().HasIndex(i => i.CreateAt);
             modelBuilder.Entity<ProductImage>().HasIndex(pi => pi.ProductID);
             modelBuilder.Entity<PointRedemption>().HasIndex(pr => pr.Status);
-            modelBuilder.Entity<Product>()
-                .HasIndex(p => p.ProductName)
-                .IsUnique();
+            modelBuilder.Entity<Product>().HasIndex(p => p.ProductName).IsUnique();
+            modelBuilder.Entity<Variant>().HasIndex(v => v.SKU).IsUnique();
+            modelBuilder.Entity<VariantAttribute>().HasKey(va => new { va.VariantID, va.AttributeValueID });
+            modelBuilder.Entity<VariantAttribute>().HasIndex(va => new { va.VariantID, va.AttributeValueID });
             modelBuilder.Entity<Variant>()
-                .HasIndex(v => v.SKU)
-                .IsUnique();
-            modelBuilder.Entity<VariantAttribute>()
-                .HasKey(va => new { va.VariantID, va.AttributeValueID });
-            modelBuilder.Entity<VariantAttribute>()
-                .HasIndex(va => new { va.VariantID, va.AttributeValueID });
+                .HasAlternateKey(v => v.SKU)
+                .HasName("AK_Variant_SKU");
+            modelBuilder.Entity<InvoiceStatusHistory>().HasIndex(ish => ish.InvoiceID);
             // Default values for GUIDs
             modelBuilder.Entity<Employee>().Property(e => e.EmployeeID).HasDefaultValueSql("NEWSEQUENTIALID()");
             modelBuilder.Entity<Customer>().Property(c => c.CustomerID).HasDefaultValueSql("NEWSEQUENTIALID()");

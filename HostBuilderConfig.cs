@@ -14,7 +14,13 @@ using ProductRepo = LapTrinhWindows.Repositories.ProductRepository;
 using LapTrinhWindows.Repositories.CategoryRepository;
 using LapTrinhWindows.Repositories.VariantRepository;
 using LapTrinhWindows.Repositories.VariantAttributeRepository;
-
+using LapTrinhWindows.Repositories.ProductImageRepository;
+using LapTrinhWindows.Repositories.ProductTagRepository;
+using LapTrinhWindows.Repositories.PointRedemptionRepository;
+using LapTrinhWindows.Repositories.InvoiceDetailRepository;
+using LapTrinhWindows.Repositories.InvoiceRepository;
+using LapTrinhWindows.Repositories.BatchRepository;
+using LapTrinhWindows.Repositories.InvoiceStatusHistoryRepository;
 
 namespace LapTrinhWindows
 {
@@ -79,9 +85,27 @@ namespace LapTrinhWindows
                     services.AddScoped<IAttributeRepository, AttributeRepository>();
                     services.AddScoped<IAttributeValueRepository, AttributeValueRepository>();
                     services.AddScoped<IVariantAttributeRepository, VariantAttributeRepository>();
-                    //IProductService
+                    services.AddScoped<IProductImageRepository, ProductImageRepository>();
+                    services.AddScoped<IProductTagRepository, ProductTagRepository>();
                     services.AddScoped<IProductService, ProductService>();
-                    // Cấu hình MinIO
+                    //IPointRedemptionRepository
+                    services.AddScoped<IPointRedemptionRepository, PointRedemptionRepository>();
+                    //IInvoiceDetailRepository
+                    services.AddScoped<IInvoiceDetailRepository, InvoiceDetailRepository>();
+                    //InvoiceRepository
+                    services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+                    //IInvoiceService
+                    services.AddScoped<IInvoiceService, InvoiceService>();
+                    //IBatchRepository
+                    services.AddScoped<IBatchRepository, BatchRepository>();
+                    //IInvoiceStatusHistoryRepository
+                    services.AddScoped<IInvoiceStatusHistoryRepository, InvoiceStatusHistoryRepository>();
+                    //PointService
+                    services.AddScoped<IPointService, DefaultPointService>();
+                    //IPointRedemptionService
+                    services.AddScoped<IPointRedemptionService, PointRedemptionService>();
+                    //IStockService
+                    services.AddScoped<IStockService, StockService>();
                     services.AddSingleton<IMinioClient>(sp =>
                     {
                         var minioConfig = configuration.GetSection("Minio");
