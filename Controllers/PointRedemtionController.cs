@@ -20,14 +20,14 @@ namespace LapTrinhWindows.Controllers
             _pointRedemptionService = pointRedemptionService;
             _logger = logger;
         }
-
+        [AllowAnonymous]
         [HttpGet]
         public async Task<ActionResult<List<PointRedemptionDTO>>> GetAll([FromQuery] bool includeInactive = false)
         {
             var pointRedemptions = await _pointRedemptionService.GetAllAsync(includeInactive);
             return Ok(pointRedemptions);
         }
-
+        [AllowAnonymous]
         [HttpGet("{id}")]
         public async Task<ActionResult<PointRedemptionDTO>> GetById(int id)
         {
@@ -38,7 +38,7 @@ namespace LapTrinhWindows.Controllers
             }
             return Ok(pointRedemption);
         }
-
+        [Authorize(Roles = "Manager,Staff")]
         [HttpPost]
         public async Task<ActionResult<PointRedemptionDTO>> Create([FromBody] PointRedemptionDTO dto)
         {
@@ -50,7 +50,7 @@ namespace LapTrinhWindows.Controllers
             var created = await _pointRedemptionService.CreateAsync(dto);
             return CreatedAtAction(nameof(GetById), new { id = created.PointRedemptionID }, created);
         }
-
+        [Authorize(Roles = "Manager,Staff")]
         [HttpPut("{id}")]
         public async Task<ActionResult<PointRedemptionDTO>> Update(int id, [FromBody] PointRedemptionDTO dto)
         {
@@ -67,7 +67,7 @@ namespace LapTrinhWindows.Controllers
             var updated = await _pointRedemptionService.UpdateAsync(id, dto);
             return Ok(updated);
         }
-
+        [Authorize(Roles = "Manager,Staff")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {

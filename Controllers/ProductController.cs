@@ -15,7 +15,7 @@ namespace LapTrinhWindows.Controllers
         private readonly IProductService _productService;
         private readonly IProductImageRepository _productImageRepository;
         private readonly IProductTagRepository _productTagRepository;
- 
+
         public ProductController(IProductService productService, IProductImageRepository productImageRepository, IProductTagRepository productTagRepository)
         {
             _productService = productService 
@@ -25,8 +25,7 @@ namespace LapTrinhWindows.Controllers
             _productTagRepository = productTagRepository 
                 ?? throw new ArgumentNullException(nameof(productTagRepository));
         }
-        
- 
+
         // GET: api/products/{id}
         [AllowAnonymous]
         [HttpGet("{id:int}")]
@@ -35,16 +34,16 @@ namespace LapTrinhWindows.Controllers
             var product = await _productService.GetProductDetailAsync(id);
             return Ok(product);
         }
- 
+
         // POST: api/products
-        [AllowAnonymous]
+        [Authorize(Roles = "Manager,Staff")]
         [HttpPost]
         public async Task<IActionResult> AddProduct([FromForm] CreateProductDTO dto)
         {
             await _productService.AddProductAsync(dto);
             return Ok("Product created successfully");
         }
- 
+
         // PUT: api/products/variant/price
         [Authorize(Roles = "Manager,Staff")]
         [HttpPut("variant/price")]
@@ -53,39 +52,44 @@ namespace LapTrinhWindows.Controllers
             await _productService.UpdateVariantPriceBySkuAsync(dto);
             return Ok(new { Message = $"Price for SKU '{dto.SKU}' updated to {dto.Price}" });
         }
- 
+
         // PUT: api/products/{id}
-        [AllowAnonymous]
+        [Authorize(Roles = "Manager,Staff")]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> UpdateProduct(int id, [FromBody] UpdateProductDTO dto)
         {
             await _productService.UpdateProductAsync(id, dto);
             return Ok(new { Message = $"Product with ID '{id}' updated successfully" });
         }
- 
+
         // DELETE: api/products/{id}
+        [Authorize(Roles = "Manager")]
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
             await _productService.DeleteProductAsync(id);
             return Ok(new { Message = "Product deleted successfully." });
         }
- 
+
         // POST: api/products/images
+        [Authorize(Roles = "Manager,Staff")]
         [HttpPost("images")]
         public async Task<IActionResult> UpsertProductImages([FromForm] UpsertProductImagesDTO dto)
         {
             var productImages = await _productService.UpsertProductImagesAsync(dto);
             return Ok("Product images updated successfully");
         }
- 
+
         // POST: api/products/tags
+        [Authorize(Roles = "Manager,Staff")]
         [HttpPost("tags")]
         public async Task<IActionResult> UpsertProductTags([FromBody] UpsertProductTagsDTO dto)
         {
             var productTags = await _productService.UpsertProductTagsAsync(dto);
             return Ok("Product tags updated successfully");
         }
+
+        // GET: api/products/additional_images/{id}
         [AllowAnonymous]
         [HttpGet("additional_images/{id:int}")]
         public async Task<IActionResult> GetAdditionalImages(int id)
@@ -93,6 +97,8 @@ namespace LapTrinhWindows.Controllers
             var images = await _productImageRepository.GetAdditionalProductImagesByProductIdAsync(id);
             return Ok(images);
         }
+
+        // GET: api/products/tags/{id}
         [AllowAnonymous]
         [HttpGet("tags/{id:int}")]
         public async Task<IActionResult> GetProductTags(int id)

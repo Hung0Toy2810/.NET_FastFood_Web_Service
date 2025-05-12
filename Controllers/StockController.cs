@@ -14,7 +14,7 @@ namespace LapTrinhWindows.Controllers
         {
             _stockService = stockService ?? throw new ArgumentNullException(nameof(stockService));
         }
-
+        [Authorize(Roles = "Manager,Staff")]
         [HttpPost("batches")]
         public async Task<IActionResult> AddBatch([FromBody] BatchCreateDto batchDto)
         {
