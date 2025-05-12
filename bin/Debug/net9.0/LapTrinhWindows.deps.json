@@ -14,7 +14,7 @@
           "Microsoft.Data.SqlClient": "6.0.1",
           "Microsoft.EntityFrameworkCore": "9.0.4",
           "Microsoft.EntityFrameworkCore.Design": "9.0.3",
-          "Microsoft.EntityFrameworkCore.Proxies": "9.0.3",
+          "Microsoft.EntityFrameworkCore.Proxies": "9.0.4",
           "Microsoft.EntityFrameworkCore.SqlServer": "9.0.4",
           "Minio": "6.0.4",
           "MongoDB.Driver": "3.3.0",
@@ -573,7 +573,7 @@
           }
         }
       },
-      "Microsoft.EntityFrameworkCore.Proxies/9.0.3": {
+      "Microsoft.EntityFrameworkCore.Proxies/9.0.4": {
         "dependencies": {
           "Castle.Core": "5.1.1",
           "Microsoft.EntityFrameworkCore": "9.0.4",
@@ -582,8 +582,8 @@
         },
         "runtime": {
           "lib/net8.0/Microsoft.EntityFrameworkCore.Proxies.dll": {
-            "assemblyVersion": "9.0.3.0",
-            "fileVersion": "9.0.325.11202"
+            "assemblyVersion": "9.0.4.0",
+            "fileVersion": "9.0.425.16310"
           }
         }
       },
@@ -1417,12 +1417,12 @@
       "path": "microsoft.entityframeworkcore.design/9.0.3",
       "hashPath": "microsoft.entityframeworkcore.design.9.0.3.nupkg.sha512"
     },
-    "Microsoft.EntityFrameworkCore.Proxies/9.0.3": {
+    "Microsoft.EntityFrameworkCore.Proxies/9.0.4": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-Swkw0IIJ3ji64c01VDAYyX8F4nTYPX8hRLo/wJcsImvGaSz3DVjxOj2byROBB0vZL9dtxKf3dtZPSIfLhdWcCQ==",
-      "path": "microsoft.entityframeworkcore.proxies/9.0.3",
-      "hashPath": "microsoft.entityframeworkcore.proxies.9.0.3.nupkg.sha512"
+      "sha512": "sha512-qGJSwYDO13wy4DeOPnwGY8RC8nLq7pAh441wqm8zIlvXm4vHWX6ujNHcgfEUI2DDMyUePVX9xJLEq7xo82Yvgg==",
+      "path": "microsoft.entityframeworkcore.proxies/9.0.4",
+      "hashPath": "microsoft.entityframeworkcore.proxies.9.0.4.nupkg.sha512"
     },
     "Microsoft.EntityFrameworkCore.Relational/9.0.4": {
       "type": "package",

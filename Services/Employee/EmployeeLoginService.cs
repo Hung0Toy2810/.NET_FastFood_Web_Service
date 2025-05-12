@@ -4,7 +4,6 @@ using System.Security.Claims;
 
 namespace LapTrinhWindows.Services
 {
-    // Cập nhật interface để trả về đối tượng chứa cả hai token
     public interface IEmployeeLoginService
     {
         Task<EmployeeLoginResult?> LoginAsync(string email, string password, string clientIp);
@@ -61,7 +60,7 @@ namespace LapTrinhWindows.Services
             {
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
-                ExpiresIn = 900 // 15 minutes in seconds
+                ExpiresIn = 900 
             };
         }
     }

@@ -8,7 +8,6 @@ namespace LapTrinhWindows.Services
     public interface IStockService
     {
         Task UpdateVariantStockBySkuAsync(string sku);
-        // Sử dụng DTO thay vì entity Batch
         Task AddBatchAndUpdateStockAsync(BatchCreateDto batchDto);
     }
 
@@ -59,19 +58,16 @@ namespace LapTrinhWindows.Services
             {
                 throw new ArgumentException("SKU của lô hàng không được để trống.", nameof(batchDto.Sku));
             }
-
-            // Lấy Variant từ SKU
             var variant = await _variantRepository.GetVariantBySkuAsync(batchDto.Sku);
             if (variant == null)
             {
                 throw new KeyNotFoundException($"Không tìm thấy Variant với SKU '{batchDto.Sku}'.");
             }
 
-            // Ánh xạ DTO sang entity Batch
             var batch = new Batch
             {
                 SKU = batchDto.Sku,
-                Variant = variant, // Gán Variant
+                Variant = variant, 
                 ExpirationDate = batchDto.ExpirationDate,
                 ProductionDate = batchDto.ProductionDate,
                 AvailableQuantity = batchDto.AvailableQuantity

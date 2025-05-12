@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using LapTrinhWindows.Repositories.EmployeeRepository;
 
 namespace LapTrinhWindows.Services
 {
@@ -21,15 +22,15 @@ namespace LapTrinhWindows.Services
         Task<List<InvoiceResponseDTO>> GetInvoicesByCustomerIdAsync(Guid? customerId);
         Task<List<InvoiceResponseDTO>> GetInvoicesByFilterAsync(InvoiceFilterDTO filter, Guid? userId, bool isStaffOrManager);
         Task<InvoiceResponseDTO> UpdateInvoiceAsync(int invoiceId, UpdateInvoiceDTO dto, Guid? userId, bool isStaffOrManager);
-        Task MarkInvoiceAsCancelledAsync(int invoiceId, Guid? userId, bool isStaffOrManager);
-        Task<List<InvoiceResponseDTO>> GetPendingInvoicesAsync(Guid? userId, bool isStaffOrManager);
+        Task<InvoiceResponseDTO> MarkInvoiceAsCancelledAsync(int invoiceId, Guid? userId, bool isStaffOrManager);
         Task<InvoiceResponseDTO> ProvideFeedbackAsync(int invoiceId, FeedbackDTO feedbackDto, Guid? userId);
-        Task SetInvoiceStatusPendingAsync(int invoiceId, Guid? userId, bool isStaffOrManager);
-        Task SetInvoiceStatusPaidAsync(int invoiceId, Guid? userId, bool isStaffOrManager);
+        Task<List<InvoiceResponseDTO>> GetPendingInvoicesAsync(Guid? userId, bool isStaffOrManager);
         Task SetDeliveryStatusPendingAsync(int invoiceId, Guid? userId, bool isStaffOrManager);
         Task SetDeliveryStatusInTransitAsync(int invoiceId, Guid? userId, bool isStaffOrManager);
         Task SetDeliveryStatusNotDeliveredAsync(int invoiceId, Guid? userId, bool isStaffOrManager);
         Task SetDeliveryStatusDeliveredAsync(int invoiceId, Guid? userId, bool isStaffOrManager);
+        Task<InvoiceResponseDTO> ChangeDeliveryAddressAsync(int invoiceId, string deliveryAddress, Guid? userId);
+        
     }
 
     public class InvoiceService : IInvoiceService
@@ -43,6 +44,7 @@ namespace LapTrinhWindows.Services
         private readonly IPointService _pointService;
         private readonly ApplicationDbContext _context;
         private readonly ILogger<InvoiceService> _logger;
+        private readonly IEmployeeRepository _employeeRepository;
 
         public InvoiceService(
             IInvoiceRepository invoiceRepository,
@@ -53,6 +55,7 @@ namespace LapTrinhWindows.Services
             IInvoiceStatusHistoryRepository statusHistoryRepository,
             IPointService pointService,
             ApplicationDbContext context,
+            IEmployeeRepository employeeRepository,
             ILogger<InvoiceService> logger)
         {
             _invoiceRepository = invoiceRepository ?? throw new ArgumentNullException(nameof(invoiceRepository));
@@ -64,33 +67,44 @@ namespace LapTrinhWindows.Services
             _pointService = pointService ?? throw new ArgumentNullException(nameof(pointService));
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _employeeRepository = employeeRepository ?? throw new ArgumentNullException(nameof(employeeRepository));
         }
 
-        // Check user access
-        private void EnsureUserHasAccess(Invoice invoice, Guid? userId, bool isStaffOrManager)
+        private async Task<Dictionary<string, Variant>> PreloadVariantsAsync(List<CreateInvoiceDetailDTO> details)
         {
-            if (!isStaffOrManager && invoice.CustomerID != userId)
-            {
-                _logger.LogWarning("User {UserId} does not have access to invoice {InvoiceId}", userId, invoice.InvoiceID);
-                throw new UnauthorizedAccessException("You can only edit your own invoices.");
-            }
+            var skus = details.Select(d => d.SKU).Distinct().ToList();
+            return await _variantRepository.GetVariantsBySkusAsync(skus);
         }
 
-        // Check InTransit status
-        private void EnsureNotInTransit(Invoice invoice)
+        // Preload point redemptions with Batch and Variant
+        private async Task<Dictionary<int, PointRedemption>> PreloadPointRedemptionsAsync(List<CreateInvoiceDetailDTO> details)
         {
-            if (invoice.DeliveryStatus == DeliveryStatus.InTransit)
-            {
-                throw new InvalidOperationException("Cannot update invoice information while in transit. Only delivery status can be updated to NotDelivered or Delivered.");
-            }
+            var redemptionIds = details.Where(d => d.IsPointRedemption && d.PointRedemptionID.HasValue)
+                                    .Select(d => d.PointRedemptionID!.Value)
+                                    .Distinct()
+                                    .ToList();
+            return await _pointRedemptionRepository.GetPointRedemptionsByIdsAsync(redemptionIds);
+        }
+
+        // Preload batches
+        private async Task<Dictionary<int, Batch>> PreloadBatchesAsync(List<CreateInvoiceDetailDTO> details)
+        {
+            var batchIds = details.Select(d => d.BatchID).Distinct().ToList();
+            return await _batchRepository.GetBatchesByIdsAsync(batchIds);
         }
 
         // Validate stock and batch
         private async Task ValidateStockAndBatchAsync(List<CreateInvoiceDetailDTO> details)
         {
+            // Preload variants, point redemptions, and batches
+            var variants = await PreloadVariantsAsync(details);
+            var redemptions = await PreloadPointRedemptionsAsync(details);
+            var batches = await PreloadBatchesAsync(details);
+
             foreach (var detail in details)
             {
-                var variant = await _variantRepository.GetVariantBySkuAsync(detail.SKU);
+                // Validate variant
+                var variant = variants.GetValueOrDefault(detail.SKU);
                 if (variant == null)
                 {
                     throw new KeyNotFoundException($"Variant with SKU {detail.SKU} not found.");
@@ -100,7 +114,8 @@ namespace LapTrinhWindows.Services
                     throw new ArgumentException($"SKU {detail.SKU} does not belong to ProductId {detail.ProductId}.");
                 }
 
-                var batch = await _batchRepository.GetBatchByIdAsync(detail.BatchID);
+                // Validate batch
+                var batch = batches.GetValueOrDefault(detail.BatchID);
                 if (batch == null)
                 {
                     throw new KeyNotFoundException($"Batch with BatchID {detail.BatchID} not found.");
@@ -109,30 +124,53 @@ namespace LapTrinhWindows.Services
                 {
                     throw new ArgumentException($"BatchID {detail.BatchID} does not belong to SKU {detail.SKU}.");
                 }
+                if (batch.ExpirationDate.HasValue && batch.ExpirationDate < DateTime.UtcNow)
+                {
+                    throw new InvalidOperationException($"Batch {detail.BatchID} for SKU {detail.SKU} has expired.");
+                }
                 if (batch.AvailableQuantity < detail.Quantity)
                 {
                     throw new InvalidOperationException($"Insufficient quantity for SKU {detail.SKU} in BatchID {detail.BatchID}. Requested: {detail.Quantity}, Available: {batch.AvailableQuantity}.");
                 }
 
-                if (detail.IsPointRedemption && !detail.PointRedemptionID.HasValue)
+                // Validate point redemption
+                if (detail.IsPointRedemption)
                 {
-                    throw new ArgumentException($"PointRedemptionID is required for point redemption detail with SKU {detail.SKU}.");
+                    if (!detail.PointRedemptionID.HasValue)
+                    {
+                        throw new ArgumentException($"PointRedemptionID is required for point redemption detail with SKU {detail.SKU}.");
+                    }
+                    var redemption = redemptions.GetValueOrDefault(detail.PointRedemptionID!.Value);
+                    if (redemption == null)
+                    {
+                        throw new KeyNotFoundException($"PointRedemption with ID {detail.PointRedemptionID} not found.");
+                    }
+                    if (redemption.SKU != detail.SKU)
+                    {
+                        throw new ArgumentException($"PointRedemption ID {detail.PointRedemptionID} does not belong to SKU {detail.SKU}.");
+                    }
+                    if (redemption.BatchID != detail.BatchID)
+                    {
+                        throw new ArgumentException($"BatchID {detail.BatchID} does not match BatchID {redemption.BatchID} of PointRedemption ID {detail.PointRedemptionID}.");
+                    }
+                    if (redemption.AvailableQuantity < detail.Quantity)
+                    {
+                        throw new InvalidOperationException($"Insufficient available quantity for PointRedemption ID {detail.PointRedemptionID}. Requested: {detail.Quantity}, Available: {redemption.AvailableQuantity}.");
+                    }
+                    if (redemption.Status != PointRedemptionStatus.Active)
+                    {
+                        throw new InvalidOperationException($"PointRedemption ID {detail.PointRedemptionID} is not active.");
+                    }
+                    if (redemption.StartDate > DateTime.UtcNow || redemption.EndDate < DateTime.UtcNow)
+                    {
+                        throw new InvalidOperationException($"PointRedemption ID {detail.PointRedemptionID} is not valid at the current time.");
+                    }
                 }
             }
         }
 
-        // Preload variants
-        private async Task<Dictionary<string, Variant>> PreloadVariantsAsync(List<CreateInvoiceDetailDTO> details)
-        {
-            var skus = details.Select(d => d.SKU).Distinct().ToList();
-            var variants = await _context.Variants
-                .Where(v => skus.Contains(v.SKU))
-                .Include(v => v.Product)
-                .ToDictionaryAsync(v => v.SKU, v => v);
-            return variants;
-        }
+        
 
-        // Create invoice (common for online and offline)
         private async Task<Invoice> CreateInvoiceInternalAsync(
             string deliveryAddress,
             List<CreateInvoiceDetailDTO> details,
@@ -142,11 +180,13 @@ namespace LapTrinhWindows.Services
             DeliveryStatus defaultDeliveryStatus,
             PaymentMethods paymentMethod)
         {
-            // Validate stock and batch before processing
+            // Validate stock, batch, and point redemption before processing
             await ValidateStockAndBatchAsync(details);
 
-            // Preload variants to reduce database queries
+            // Preload variants, point redemptions, and batches
             var variants = await PreloadVariantsAsync(details);
+            var redemptions = await PreloadPointRedemptionsAsync(details);
+            var batches = await PreloadBatchesAsync(details);
 
             // Validate and calculate points used for redemption
             int totalPointsUsed = 0;
@@ -154,11 +194,7 @@ namespace LapTrinhWindows.Services
             {
                 foreach (var detail in details.Where(d => d.IsPointRedemption))
                 {
-                    var redemption = await _pointRedemptionRepository.GetByIdAsync(detail.PointRedemptionID!.Value);
-                    if (redemption == null)
-                    {
-                        throw new ArgumentException($"PointRedemption with ID {detail.PointRedemptionID} not found.");
-                    }
+                    var redemption = redemptions[detail.PointRedemptionID!.Value];
                     totalPointsUsed += redemption.PointsRequired * detail.Quantity;
                 }
                 if (!await _pointService.ValidateCustomerPointsAsync(customerId.Value, totalPointsUsed))
@@ -180,10 +216,10 @@ namespace LapTrinhWindows.Services
                     CreateAt = DateTime.UtcNow,
                     Discount = 0,
                     PaymentMethod = paymentMethod,
-                    Status = InvoiceStatus.Paid, // Default to Paid
+                    Status = InvoiceStatus.Paid,
                     Total = 0,
                     DeliveryAddress = deliveryAddress,
-                    DeliveryStatus = defaultDeliveryStatus,
+                    DeliveryStatus = DeliveryStatus.Pending,
                     OrderType = orderType,
                     Feedback = string.Empty,
                     Star = 0,
@@ -196,17 +232,8 @@ namespace LapTrinhWindows.Services
                 double invoiceTotal = 0;
                 foreach (var detailDto in details)
                 {
-                    var variant = variants.GetValueOrDefault(detailDto.SKU);
-                    if (variant == null)
-                    {
-                        throw new KeyNotFoundException($"Variant with SKU {detailDto.SKU} not found.");
-                    }
-
-                    var batch = await _batchRepository.GetBatchByIdAsync(detailDto.BatchID);
-                    if (batch == null)
-                    {
-                        throw new KeyNotFoundException($"Batch with BatchID {detailDto.BatchID} not found.");
-                    }
+                    var variant = variants[detailDto.SKU];
+                    var batch = batches[detailDto.BatchID];
 
                     // Calculate total
                     double detailTotal = detailDto.IsPointRedemption
@@ -234,29 +261,29 @@ namespace LapTrinhWindows.Services
                     {
                         throw new InvalidOperationException($"Available quantity of batch {batch.BatchID} cannot be negative.");
                     }
-                    _context.Batches.Update(batch);
+                    await _batchRepository.UpdateBatchAsync(batch);
 
                     // Update variant stock
-                    var batches = await _batchRepository.GetBatchesBySkuAsync(detailDto.SKU);
-                    variant.Stock = batches.Sum(b => b.AvailableQuantity);
-                    _context.Variants.Update(variant);
+                    var batchList = await _batchRepository.GetBatchesBySkuAsync(detailDto.SKU);
+                    variant.Stock = batchList.Sum(b => b.AvailableQuantity);
+                    await _variantRepository.UpdateVariantAsync(variant);
 
                     // Deduct point redemption quantity if applicable
                     if (detailDto.IsPointRedemption)
                     {
-                        var redemption = await _pointRedemptionRepository.GetByIdAsync(detailDto.PointRedemptionID!.Value);
-                        if (redemption == null || redemption.AvailableQuantity < detailDto.Quantity)
-                        {
-                            throw new InvalidOperationException($"Insufficient available quantity for PointRedemption ID {detailDto.PointRedemptionID}.");
-                        }
+                        var redemption = redemptions[detailDto.PointRedemptionID!.Value];
                         redemption.AvailableQuantity -= detailDto.Quantity;
-                        _context.PointRedemptions.Update(redemption);
+                        if (redemption.AvailableQuantity < 0)
+                        {
+                            throw new InvalidOperationException($"Available quantity of PointRedemption ID {detailDto.PointRedemptionID} cannot be negative.");
+                        }
+                        await _pointRedemptionRepository.UpdateAsync(redemption);
                     }
                 }
 
                 // Update invoice total
                 createdInvoice.Total = invoiceTotal;
-                _context.Invoices.Update(createdInvoice);
+                await _invoiceRepository.UpdateInvoiceAsync(createdInvoice);
 
                 // Update customer points
                 if (customerId.HasValue)
@@ -267,7 +294,6 @@ namespace LapTrinhWindows.Services
                     }
                     else
                     {
-                        // Calculate points for all products
                         int pointsEarned = 0;
                         foreach (var detail in details.Where(d => !d.IsPointRedemption))
                         {
@@ -377,6 +403,44 @@ namespace LapTrinhWindows.Services
             return invoice;
         }
 
+        private static class DeliveryStateMachine
+        {
+            public static bool IsValidTransition(DeliveryStatus from, DeliveryStatus to)
+            {
+                return (from, to) switch
+                {
+                    (DeliveryStatus.Pending, DeliveryStatus.InTransit) => true,
+                    (DeliveryStatus.InTransit, DeliveryStatus.Delivered) => true,
+                    (DeliveryStatus.InTransit, DeliveryStatus.NotDelivered) => true,
+                    _ => false
+                };
+            }
+
+            public static bool CanChangeStatus(DeliveryStatus status, InvoiceStatus invoiceStatus)
+            {
+                return invoiceStatus != InvoiceStatus.Cancelled &&
+                       status != DeliveryStatus.Delivered &&
+                       status != DeliveryStatus.NotDelivered;
+            }
+
+            public static bool CanChangeAddress(DeliveryStatus status, InvoiceStatus invoiceStatus)
+            {
+                return invoiceStatus != InvoiceStatus.Cancelled &&
+                       status == DeliveryStatus.Pending;
+            }
+
+            public static bool CanCancel(DeliveryStatus status, InvoiceStatus invoiceStatus)
+            {
+                return invoiceStatus == InvoiceStatus.Paid &&
+                       (status == DeliveryStatus.Pending || status == DeliveryStatus.NotDelivered);
+            }
+
+            public static bool CanProvideFeedback(DeliveryStatus status, InvoiceStatus invoiceStatus)
+            {
+                return status == DeliveryStatus.Delivered || status == DeliveryStatus.NotDelivered;
+            }
+        }
+
         public async Task<InvoiceResponseDTO?> GetInvoiceByIdAsync(int invoiceId, Guid? userId, bool isStaffOrManager)
         {
             var invoice = await _invoiceRepository.GetInvoiceByIdAsync(invoiceId);
@@ -386,7 +450,7 @@ namespace LapTrinhWindows.Services
                 return null;
             }
 
-            EnsureUserHasAccess(invoice, userId, isStaffOrManager);
+            await EnsureUserHasAccess(invoice, userId, isStaffOrManager);
             return MapToInvoiceResponseDTO(invoice);
         }
 
@@ -415,19 +479,24 @@ namespace LapTrinhWindows.Services
         public async Task<InvoiceResponseDTO> UpdateInvoiceAsync(int invoiceId, UpdateInvoiceDTO dto, Guid? userId, bool isStaffOrManager)
         {
             var invoice = await GetInvoiceOrThrowAsync(invoiceId);
-            EnsureUserHasAccess(invoice, userId, isStaffOrManager);
+            await EnsureUserHasAccess(invoice, userId, isStaffOrManager);
 
-            if (invoice.Status == InvoiceStatus.Cancelled)
+            if (dto.DeliveryAddress != null && !DeliveryStateMachine.CanChangeAddress(invoice.DeliveryStatus, invoice.Status))
             {
-                throw new InvalidOperationException("Cannot update a cancelled invoice.");
+                throw new InvalidOperationException("Cannot update delivery address for this invoice status.");
             }
 
-            if (dto.DeliveryAddress != null && invoice.DeliveryStatus == DeliveryStatus.Delivered)
+            if (dto.DeliveryStatus.HasValue && !DeliveryStateMachine.CanChangeStatus(invoice.DeliveryStatus, invoice.Status))
             {
-                throw new InvalidOperationException("Cannot update delivery address for a delivered invoice.");
+                throw new InvalidOperationException("Cannot update delivery status for this invoice status.");
             }
 
-            ValidateUpdateInvoiceDTO(dto);
+            if (dto.Feedback != null || dto.Star.HasValue)
+            {
+                throw new InvalidOperationException("Feedback and rating must be updated via ProvideFeedbackAsync.");
+            }
+
+            ValidateUpdateInvoiceDTO(dto, invoice);
 
             if (invoice.DeliveryStatus == DeliveryStatus.InTransit && HasNonDeliveryChanges(dto))
             {
@@ -437,20 +506,15 @@ namespace LapTrinhWindows.Services
             await using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                var oldStatus = invoice.Status;
+                var oldDeliveryStatus = invoice.DeliveryStatus;
                 UpdateInvoiceFields(invoice, dto, isStaffOrManager);
 
-                if (dto.Status.HasValue && oldStatus != dto.Status.Value)
+                if (dto.DeliveryStatus.HasValue && oldDeliveryStatus != dto.DeliveryStatus.Value)
                 {
-                    var history = new InvoiceStatusHistory
+                    if (!DeliveryStateMachine.IsValidTransition(oldDeliveryStatus, dto.DeliveryStatus.Value))
                     {
-                        InvoiceID = invoiceId,
-                        OldStatus = oldStatus,
-                        NewStatus = dto.Status.Value,
-                        ChangedAt = DateTime.UtcNow,
-                        ChangedBy = userId
-                    };
-                    await _statusHistoryRepository.CreateStatusHistoryAsync(history);
+                        throw new InvalidOperationException($"Invalid delivery status transition from {oldDeliveryStatus} to {dto.DeliveryStatus.Value}.");
+                    }
                 }
 
                 await _invoiceRepository.UpdateInvoiceAsync(invoice);
@@ -467,20 +531,20 @@ namespace LapTrinhWindows.Services
             }
         }
 
-        public async Task MarkInvoiceAsCancelledAsync(int invoiceId, Guid? userId, bool isStaffOrManager)
+        public async Task<InvoiceResponseDTO> MarkInvoiceAsCancelledAsync(int invoiceId, Guid? userId, bool isStaffOrManager)
         {
             var invoice = await GetInvoiceOrThrowAsync(invoiceId);
-            EnsureUserHasAccess(invoice, userId, isStaffOrManager);
+            await EnsureUserHasAccess(invoice, userId, isStaffOrManager);
 
             if (invoice.Status == InvoiceStatus.Cancelled)
             {
                 throw new InvalidOperationException("Invoice is already cancelled.");
             }
-            if (invoice.DeliveryStatus == DeliveryStatus.Delivered)
+
+            if (!DeliveryStateMachine.CanCancel(invoice.DeliveryStatus, invoice.Status))
             {
-                throw new InvalidOperationException("Cannot cancel a delivered invoice.");
+                throw new InvalidOperationException("Cannot cancel invoice in this status.");
             }
-            EnsureNotInTransit(invoice);
 
             await using var transaction = await _context.Database.BeginTransactionAsync();
             try
@@ -488,20 +552,16 @@ namespace LapTrinhWindows.Services
                 var oldStatus = invoice.Status;
                 invoice.Status = InvoiceStatus.Cancelled;
 
-                var history = new InvoiceStatusHistory
-                {
-                    InvoiceID = invoiceId,
-                    OldStatus = oldStatus,
-                    NewStatus = InvoiceStatus.Cancelled,
-                    ChangedAt = DateTime.UtcNow,
-                    ChangedBy = userId
-                };
-                await _statusHistoryRepository.CreateStatusHistoryAsync(history);
-
                 await _invoiceRepository.UpdateInvoiceAsync(invoice);
-                await transaction.CommitAsync();
 
+                if (oldStatus == InvoiceStatus.Paid)
+                {
+                    await RefundAsync(invoiceId, invoice.CustomerID);
+                }
+
+                await transaction.CommitAsync();
                 _logger.LogInformation("Invoice {InvoiceId} marked as cancelled.", invoiceId);
+                return MapToInvoiceResponseDTO(invoice);
             }
             catch (Exception ex)
             {
@@ -511,22 +571,20 @@ namespace LapTrinhWindows.Services
             }
         }
 
-        public async Task<List<InvoiceResponseDTO>> GetPendingInvoicesAsync(Guid? userId, bool isStaffOrManager)
-        {
-            if (!isStaffOrManager)
-            {
-                throw new UnauthorizedAccessException("Only staff or managers can view pending invoices.");
-            }
-
-            var invoices = await _invoiceRepository.GetPendingInvoicesAsync();
-            return invoices.Select(MapToInvoiceResponseDTO).ToList();
-        }
-
         public async Task<InvoiceResponseDTO> ProvideFeedbackAsync(int invoiceId, FeedbackDTO feedbackDto, Guid? userId)
         {
             var invoice = await GetInvoiceOrThrowAsync(invoiceId);
-            EnsureUserHasAccess(invoice, userId, false);
-            EnsureNotInTransit(invoice);
+            await EnsureUserHasAccess(invoice, userId, false);
+
+            if (!DeliveryStateMachine.CanProvideFeedback(invoice.DeliveryStatus, invoice.Status))
+            {
+                throw new InvalidOperationException("Cannot provide feedback for this invoice status.");
+            }
+
+            if (!string.IsNullOrEmpty(invoice.Feedback))
+            {
+                throw new InvalidOperationException("Feedback has already been provided for this invoice.");
+            }
 
             if (string.IsNullOrWhiteSpace(feedbackDto.Feedback))
             {
@@ -542,6 +600,7 @@ namespace LapTrinhWindows.Services
             {
                 invoice.Feedback = feedbackDto.Feedback;
                 invoice.Star = feedbackDto.Star;
+
                 await _invoiceRepository.UpdateInvoiceAsync(invoice);
                 await transaction.CommitAsync();
 
@@ -556,102 +615,21 @@ namespace LapTrinhWindows.Services
             }
         }
 
-        public async Task SetInvoiceStatusPendingAsync(int invoiceId, Guid? userId, bool isStaffOrManager)
+        public async Task<List<InvoiceResponseDTO>> GetPendingInvoicesAsync(Guid? userId, bool isStaffOrManager)
         {
-            var invoice = await GetInvoiceOrThrowAsync(invoiceId);
-            EnsureUserHasAccess(invoice, userId, isStaffOrManager);
-
             if (!isStaffOrManager)
             {
-                throw new UnauthorizedAccessException("Only staff or managers can change invoice status.");
-            }
-            if (invoice.Status == InvoiceStatus.Pending)
-            {
-                throw new InvalidOperationException("Invoice is already in Pending status.");
-            }
-            if (invoice.Status == InvoiceStatus.Cancelled)
-            {
-                throw new InvalidOperationException("Cannot change status from Cancelled to Pending.");
+                throw new UnauthorizedAccessException("Only staff or managers can view pending invoices.");
             }
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var oldStatus = invoice.Status;
-                invoice.Status = InvoiceStatus.Pending;
-
-                var history = new InvoiceStatusHistory
-                {
-                    InvoiceID = invoiceId,
-                    OldStatus = oldStatus,
-                    NewStatus = InvoiceStatus.Pending,
-                    ChangedAt = DateTime.UtcNow,
-                    ChangedBy = userId
-                };
-                await _statusHistoryRepository.CreateStatusHistoryAsync(history);
-
-                await _invoiceRepository.UpdateInvoiceAsync(invoice);
-                await transaction.CommitAsync();
-                _logger.LogInformation("Invoice {InvoiceId} updated to Pending status.", invoiceId);
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                _logger.LogError(ex, "Error updating Pending status for invoice {InvoiceId}: {ErrorMessage}", invoiceId, ex.Message);
-                throw new InvalidOperationException($"Error updating Pending status: {ex.Message}", ex);
-            }
-        }
-
-        public async Task SetInvoiceStatusPaidAsync(int invoiceId, Guid? userId, bool isStaffOrManager)
-        {
-            var invoice = await GetInvoiceOrThrowAsync(invoiceId);
-            EnsureUserHasAccess(invoice, userId, isStaffOrManager);
-
-            if (!isStaffOrManager)
-            {
-                throw new UnauthorizedAccessException("Only staff or managers can change invoice status.");
-            }
-            if (invoice.Status == InvoiceStatus.Paid)
-            {
-                throw new InvalidOperationException("Invoice is already in Paid status.");
-            }
-            if (invoice.Status == InvoiceStatus.Cancelled)
-            {
-                throw new InvalidOperationException("Cannot change status from Cancelled to Paid.");
-            }
-
-            await using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var oldStatus = invoice.Status;
-                invoice.Status = InvoiceStatus.Paid;
-
-                var history = new InvoiceStatusHistory
-                {
-                    InvoiceID = invoiceId,
-                    OldStatus = oldStatus,
-                    NewStatus = InvoiceStatus.Paid,
-                    ChangedAt = DateTime.UtcNow,
-                    ChangedBy = userId
-                };
-                await _statusHistoryRepository.CreateStatusHistoryAsync(history);
-
-                await _invoiceRepository.UpdateInvoiceAsync(invoice);
-                await transaction.CommitAsync();
-                _logger.LogInformation("Invoice {InvoiceId} updated to Paid status.", invoiceId);
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                _logger.LogError(ex, "Error updating Paid status for invoice {InvoiceId}: {ErrorMessage}", invoiceId, ex.Message);
-                throw new InvalidOperationException($"Error updating Paid status: {ex.Message}", ex);
-            }
+            var invoices = await _invoiceRepository.GetPendingInvoicesAsync();
+            return invoices.Select(MapToInvoiceResponseDTO).ToList();
         }
 
         public async Task SetDeliveryStatusPendingAsync(int invoiceId, Guid? userId, bool isStaffOrManager)
         {
             var invoice = await GetInvoiceOrThrowAsync(invoiceId);
-            EnsureUserHasAccess(invoice, userId, isStaffOrManager);
+            await EnsureUserHasAccess(invoice, userId, isStaffOrManager);
 
             if (!isStaffOrManager)
             {
@@ -674,6 +652,7 @@ namespace LapTrinhWindows.Services
             try
             {
                 invoice.DeliveryStatus = DeliveryStatus.Pending;
+
                 await _invoiceRepository.UpdateInvoiceAsync(invoice);
                 await transaction.CommitAsync();
                 _logger.LogInformation("Invoice {InvoiceId} updated to Pending delivery status.", invoiceId);
@@ -689,7 +668,7 @@ namespace LapTrinhWindows.Services
         public async Task SetDeliveryStatusInTransitAsync(int invoiceId, Guid? userId, bool isStaffOrManager)
         {
             var invoice = await GetInvoiceOrThrowAsync(invoiceId);
-            EnsureUserHasAccess(invoice, userId, isStaffOrManager);
+            await EnsureUserHasAccess(invoice, userId, isStaffOrManager);
 
             if (!isStaffOrManager)
             {
@@ -699,15 +678,11 @@ namespace LapTrinhWindows.Services
             {
                 throw new InvalidOperationException("Cannot update delivery status for a cancelled invoice.");
             }
-            if (invoice.Status != InvoiceStatus.Paid)
-            {
-                throw new InvalidOperationException("Can only change to InTransit when invoice is paid.");
-            }
             if (invoice.DeliveryStatus == DeliveryStatus.InTransit)
             {
                 throw new InvalidOperationException("Invoice is already in InTransit status.");
             }
-            if (invoice.DeliveryStatus != DeliveryStatus.Pending)
+            if (!DeliveryStateMachine.IsValidTransition(invoice.DeliveryStatus, DeliveryStatus.InTransit))
             {
                 throw new InvalidOperationException($"Cannot change delivery status from {invoice.DeliveryStatus} to InTransit.");
             }
@@ -716,6 +691,7 @@ namespace LapTrinhWindows.Services
             try
             {
                 invoice.DeliveryStatus = DeliveryStatus.InTransit;
+
                 await _invoiceRepository.UpdateInvoiceAsync(invoice);
                 await transaction.CommitAsync();
                 _logger.LogInformation("Invoice {InvoiceId} updated to InTransit delivery status.", invoiceId);
@@ -731,7 +707,7 @@ namespace LapTrinhWindows.Services
         public async Task SetDeliveryStatusNotDeliveredAsync(int invoiceId, Guid? userId, bool isStaffOrManager)
         {
             var invoice = await GetInvoiceOrThrowAsync(invoiceId);
-            EnsureUserHasAccess(invoice, userId, isStaffOrManager);
+            await EnsureUserHasAccess(invoice, userId, isStaffOrManager);
 
             if (!isStaffOrManager)
             {
@@ -741,15 +717,11 @@ namespace LapTrinhWindows.Services
             {
                 throw new InvalidOperationException("Cannot update delivery status for a cancelled invoice.");
             }
-            if (invoice.Status != InvoiceStatus.Paid)
-            {
-                throw new InvalidOperationException("Can only change to NotDelivered when invoice is paid.");
-            }
             if (invoice.DeliveryStatus == DeliveryStatus.NotDelivered)
             {
                 throw new InvalidOperationException("Invoice is already in NotDelivered status.");
             }
-            if (invoice.DeliveryStatus != DeliveryStatus.InTransit)
+            if (!DeliveryStateMachine.IsValidTransition(invoice.DeliveryStatus, DeliveryStatus.NotDelivered))
             {
                 throw new InvalidOperationException($"Cannot change delivery status from {invoice.DeliveryStatus} to NotDelivered.");
             }
@@ -758,6 +730,7 @@ namespace LapTrinhWindows.Services
             try
             {
                 invoice.DeliveryStatus = DeliveryStatus.NotDelivered;
+
                 await _invoiceRepository.UpdateInvoiceAsync(invoice);
                 await transaction.CommitAsync();
                 _logger.LogInformation("Invoice {InvoiceId} updated to NotDelivered delivery status.", invoiceId);
@@ -773,7 +746,7 @@ namespace LapTrinhWindows.Services
         public async Task SetDeliveryStatusDeliveredAsync(int invoiceId, Guid? userId, bool isStaffOrManager)
         {
             var invoice = await GetInvoiceOrThrowAsync(invoiceId);
-            EnsureUserHasAccess(invoice, userId, isStaffOrManager);
+            await EnsureUserHasAccess(invoice, userId, isStaffOrManager);
 
             if (!isStaffOrManager)
             {
@@ -783,15 +756,11 @@ namespace LapTrinhWindows.Services
             {
                 throw new InvalidOperationException("Cannot update delivery status for a cancelled invoice.");
             }
-            if (invoice.Status != InvoiceStatus.Paid)
-            {
-                throw new InvalidOperationException("Can only change to Delivered when invoice is paid.");
-            }
             if (invoice.DeliveryStatus == DeliveryStatus.Delivered)
             {
                 throw new InvalidOperationException("Invoice is already in Delivered status.");
             }
-            if (invoice.DeliveryStatus != DeliveryStatus.InTransit)
+            if (!DeliveryStateMachine.IsValidTransition(invoice.DeliveryStatus, DeliveryStatus.Delivered))
             {
                 throw new InvalidOperationException($"Cannot change delivery status from {invoice.DeliveryStatus} to Delivered.");
             }
@@ -800,6 +769,7 @@ namespace LapTrinhWindows.Services
             try
             {
                 invoice.DeliveryStatus = DeliveryStatus.Delivered;
+
                 await _invoiceRepository.UpdateInvoiceAsync(invoice);
                 await transaction.CommitAsync();
                 _logger.LogInformation("Invoice {InvoiceId} updated to Delivered delivery status.", invoiceId);
@@ -810,6 +780,60 @@ namespace LapTrinhWindows.Services
                 _logger.LogError(ex, "Error updating Delivered delivery status for invoice {InvoiceId}: {ErrorMessage}", invoiceId, ex.Message);
                 throw new InvalidOperationException($"Error updating Delivered delivery status: {ex.Message}", ex);
             }
+        }
+
+        public async Task<InvoiceResponseDTO> ChangeDeliveryAddressAsync(int invoiceId, string deliveryAddress, Guid? userId)
+        {
+            if (string.IsNullOrEmpty(deliveryAddress) || deliveryAddress.Length > 500)
+            {
+                throw new ArgumentException("Delivery address is required and must not exceed 500 characters.");
+            }
+
+            var invoice = await _invoiceRepository.GetInvoiceByIdAsync(invoiceId);
+            if (invoice == null)
+            {
+                throw new KeyNotFoundException($"Invoice with ID {invoiceId} not found.");
+            }
+
+            if (userId == null || invoice.CustomerID != userId)
+            {
+                throw new UnauthorizedAccessException("You do not have permission to change this invoice's delivery address.");
+            }
+
+            if (!DeliveryStateMachine.CanChangeAddress(invoice.DeliveryStatus, invoice.Status))
+            {
+                throw new InvalidOperationException("Cannot change delivery address: Invoice is cancelled or delivery status is not Pending.");
+            }
+
+            invoice.DeliveryAddress = deliveryAddress;
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                await _invoiceRepository.UpdateInvoiceAsync(invoice);
+
+                await transaction.CommitAsync();
+                _logger.LogInformation("Delivery address for invoice {InvoiceId} updated to {DeliveryAddress}", invoiceId, deliveryAddress);
+
+                var invoiceResponse = await GetInvoiceByIdAsync(invoiceId, userId, false);
+                if (invoiceResponse == null)
+                {
+                    throw new InvalidOperationException($"Invoice with ID {invoiceId} could not be found.");
+                }
+                return invoiceResponse;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Error updating delivery address for invoice {InvoiceId}: {ErrorMessage}", invoiceId, ex.Message);
+                throw new InvalidOperationException($"Error updating delivery address: {ex.Message}", ex);
+            }
+        }
+
+        private async Task RefundAsync(int invoiceId, Guid? customerId)
+        {
+            _logger.LogInformation("Refund initiated for invoice {InvoiceId} to customer {CustomerId}", invoiceId, customerId);
+            await Task.CompletedTask;
         }
 
         private async Task<Invoice> GetInvoiceOrThrowAsync(int invoiceId)
@@ -823,25 +847,29 @@ namespace LapTrinhWindows.Services
             return invoice;
         }
 
-        private void ValidateUpdateInvoiceDTO(UpdateInvoiceDTO dto)
+        private void ValidateUpdateInvoiceDTO(UpdateInvoiceDTO dto, Invoice invoice)
         {
             if (dto.Star.HasValue && (dto.Star.Value < 1 || dto.Star.Value > 5))
             {
-                throw new ArgumentException("Rating joined must be between 1 and 5.");
+                throw new ArgumentException("Rating must be between 1 and 5.");
             }
             if (dto.DeliveryAddress?.Trim() == "")
             {
                 throw new ArgumentException("Delivery address cannot be empty.");
             }
+            if (dto.Discount.HasValue && (dto.Discount.Value < 0 || dto.Discount.Value > invoice.Total))
+            {
+                throw new ArgumentException("Discount must be between 0 and the invoice total.");
+            }
+            if (dto.DeliveryStatus.HasValue && !Enum.IsDefined(typeof(DeliveryStatus), dto.DeliveryStatus.Value))
+            {
+                throw new ArgumentException("Invalid delivery status.");
+            }
         }
 
         private bool HasNonDeliveryChanges(UpdateInvoiceDTO dto)
         {
-            return dto.DeliveryAddress != null
-                || dto.Status.HasValue
-                || dto.Feedback != null
-                || dto.Star.HasValue
-                || dto.Discount.HasValue;
+            return dto.DeliveryAddress != null || dto.Discount.HasValue;
         }
 
         private void UpdateInvoiceFields(Invoice invoice, UpdateInvoiceDTO dto, bool isStaffOrManager)
@@ -850,14 +878,6 @@ namespace LapTrinhWindows.Services
             {
                 invoice.DeliveryAddress = dto.DeliveryAddress;
             }
-            if (dto.Status.HasValue)
-            {
-                if (!isStaffOrManager)
-                {
-                    throw new UnauthorizedAccessException("Only staff or managers can change invoice status.");
-                }
-                invoice.Status = dto.Status.Value;
-            }
             if (dto.DeliveryStatus.HasValue)
             {
                 if (!isStaffOrManager)
@@ -865,14 +885,6 @@ namespace LapTrinhWindows.Services
                     throw new UnauthorizedAccessException("Only staff or managers can change delivery status.");
                 }
                 invoice.DeliveryStatus = dto.DeliveryStatus.Value;
-            }
-            if (dto.Feedback != null)
-            {
-                invoice.Feedback = dto.Feedback;
-            }
-            if (dto.Star.HasValue)
-            {
-                invoice.Star = dto.Star.Value;
             }
             if (dto.Discount.HasValue)
             {
@@ -909,6 +921,39 @@ namespace LapTrinhWindows.Services
                     PointRedemptionID = d.PointRedemptionID
                 }).ToList()
             };
+        }
+
+        private async Task EnsureUserHasAccess(Invoice invoice, Guid? userId, bool isStaffOrManager)
+        {
+            if (userId == null)
+            {
+                _logger.LogWarning("Unauthorized access attempt to invoice {InvoiceId}: User not authenticated", invoice.InvoiceID);
+                throw new UnauthorizedAccessException("User must be authenticated.");
+            }
+
+            if (isStaffOrManager)
+            {
+                var employee = await _employeeRepository.GetEmployeeByIdAsync(userId.Value);
+                if (employee == null)
+                {
+                    _logger.LogWarning("User {UserId} is not a valid employee for invoice {InvoiceId}", userId, invoice.InvoiceID);
+                    throw new UnauthorizedAccessException("Invalid employee ID.");
+                }
+            }
+            else
+            {
+                if (invoice.IsAnonymous)
+                {
+                    _logger.LogWarning("User {UserId} attempted to access anonymous invoice {InvoiceId}", userId, invoice.InvoiceID);
+                    throw new UnauthorizedAccessException("Only staff or managers can access anonymous invoices.");
+                }
+
+                if (invoice.CustomerID != userId)
+                {
+                    _logger.LogWarning("User {UserId} does not have access to invoice {InvoiceId} (CustomerID: {CustomerID})", userId, invoice.InvoiceID, invoice.CustomerID);
+                    throw new UnauthorizedAccessException("You can only edit your own invoices.");
+                }
+            }
         }
     }
 }

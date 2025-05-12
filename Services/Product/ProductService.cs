@@ -21,6 +21,7 @@ using LapTrinhWindows.Repositories.ProductTagRepository;
 
 
 
+
 namespace LapTrinhWindows.Services
 {
     public interface IProductService
@@ -32,6 +33,8 @@ namespace LapTrinhWindows.Services
         Task DeleteProductAsync(int id);
         Task<List<Models.ProductImage>> UpsertProductImagesAsync(UpsertProductImagesDTO dto);
         Task<List<ProductTag>> UpsertProductTagsAsync(UpsertProductTagsDTO dto);
+        Task<List<ProductResponseDTO>> SearchProductsAsync(string searchString);
+        
         
         
     }
@@ -838,7 +841,20 @@ namespace LapTrinhWindows.Services
 
             return false;
         }
-        
+        public async Task<List<ProductResponseDTO>> SearchProductsAsync(string searchString)
+        {
+            var products = await _productRepository.SearchProduct(searchString);
+
+            var productDtos = products.Select(p => new ProductResponseDTO
+            {
+                Id = p.ProductID,
+                Name = p.ProductName,
+                ImageUrl = p.ImageUrl ?? p.ImageKey,
+                Discount = p.Discount
+            }).ToList();
+
+            return productDtos;
+        }
         
     }
 }

@@ -12,7 +12,7 @@ namespace LapTrinhWindows.Services
     {
         Task<(string AccessToken, string RefreshToken)> GenerateTokensAsync(string id, string username, string role, string clientIp);
         Task<(string AccessToken, string RefreshToken)> RefreshTokenAsync(string refreshToken);
-        // refreshemployeetoken
+        
         Task RevokeTokenAsync(string token);
     }
 
@@ -243,19 +243,14 @@ namespace LapTrinhWindows.Services
                 throw new InvalidOperationException("Token is already expired.");
             }
 
-            // Đánh dấu token đã bị thu hồi trong Redis (key: revoked:{jti})
             var db = _redis.GetDatabase();
             await db.StringSetAsync($"revoked:{jti}", "true", ttl);
-
-            // Lấy userId từ claim để xóa session và refresh token liên quan
             var userIdClaim = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
             if (userIdClaim != null)
             {
                 var userId = userIdClaim.Value;
                 var sessionKey = $"session:{userId}";
                 var sessionData = await db.StringGetAsync(sessionKey);
-
-                // Nếu session tồn tại, xóa session và refresh token khỏi Redis
                 if (sessionData.HasValue && !string.IsNullOrEmpty(sessionData.ToString()))
                 {
                     var sessionParts = sessionData.ToString().Split('|');

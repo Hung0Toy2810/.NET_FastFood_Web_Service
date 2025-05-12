@@ -9,6 +9,7 @@ namespace LapTrinhWindows.Repositories.ProductTagRepository
         Task AddProductTagsAsync(List<ProductTag> productTags);
         Task<List<Tag>> GetUnusedTagsAsync();
         Task DeleteTagsAsync(List<int> tagIds);
+        Task <List<string>> GetProductTagNamesByProductIdAsync(int productId);
     }
     public class ProductTagRepository : IProductTagRepository
     {
@@ -70,6 +71,15 @@ namespace LapTrinhWindows.Repositories.ProductTagRepository
                 .ToListAsync();
             _context.Tags.RemoveRange(tags);
             await _context.SaveChangesAsync();
+        }
+        public async Task <List<string>> GetProductTagNamesByProductIdAsync(int productId)
+        {
+            return await _context.ProductTags
+                .Where(pt => pt.ProductID == productId)
+                .Include(pt => pt.Tag) 
+                .Select(pt => pt.Tag.TagName)
+                .OrderByDescending(tagName => tagName) 
+                .ToListAsync();
         }
     }
 }

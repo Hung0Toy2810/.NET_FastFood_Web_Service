@@ -8,6 +8,8 @@ namespace LapTrinhWindows.Repositories.PointRedemptionRepository
         Task<PointRedemption> UpdateAsync(PointRedemption pointRedemption);
         Task DeleteAsync(int id);
         Task<bool> ExistsBySKUAsync(string sku);
+        Task<Dictionary<int, PointRedemption>> GetPointRedemptionsByIdsAsync(IEnumerable<int> redemptionIds);
+        
     }
     public class PointRedemptionRepository : IPointRedemptionRepository
     {
@@ -69,6 +71,14 @@ namespace LapTrinhWindows.Repositories.PointRedemptionRepository
         public async Task<bool> ExistsBySKUAsync(string sku)
         {
             return await _context.PointRedemptions.AnyAsync(pr => pr.SKU == sku);
+        }
+        public async Task<Dictionary<int, PointRedemption>> GetPointRedemptionsByIdsAsync(IEnumerable<int> redemptionIds)
+        {
+            return await _context.PointRedemptions
+                .Include(pr => pr.Batch)
+                .Include(pr => pr.Variant)
+                .Where(pr => redemptionIds.Contains(pr.PointRedemptionID))
+                .ToDictionaryAsync(pr => pr.PointRedemptionID, pr => pr);
         }
     }
 }

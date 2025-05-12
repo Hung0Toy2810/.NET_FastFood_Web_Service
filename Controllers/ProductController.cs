@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using LapTrinhWindows.Models.DTO;
 using LapTrinhWindows.Services;
+using LapTrinhWindows.Repositories.ProductRepository;
+using LapTrinhWindows.Repositories.ProductImageRepository;
+using LapTrinhWindows.Repositories.ProductTagRepository;
 
 namespace LapTrinhWindows.Controllers
 {
@@ -10,12 +13,19 @@ namespace LapTrinhWindows.Controllers
     public class ProductController : ControllerBase
     {
         private readonly IProductService _productService;
+        private readonly IProductImageRepository _productImageRepository;
+        private readonly IProductTagRepository _productTagRepository;
  
-        public ProductController(IProductService productService)
+        public ProductController(IProductService productService, IProductImageRepository productImageRepository, IProductTagRepository productTagRepository)
         {
             _productService = productService 
                 ?? throw new ArgumentNullException(nameof(productService));
+            _productImageRepository = productImageRepository 
+                ?? throw new ArgumentNullException(nameof(productImageRepository));
+            _productTagRepository = productTagRepository 
+                ?? throw new ArgumentNullException(nameof(productTagRepository));
         }
+        
  
         // GET: api/products/{id}
         [AllowAnonymous]
@@ -75,6 +85,20 @@ namespace LapTrinhWindows.Controllers
         {
             var productTags = await _productService.UpsertProductTagsAsync(dto);
             return Ok("Product tags updated successfully");
+        }
+        [AllowAnonymous]
+        [HttpGet("additional_images/{id:int}")]
+        public async Task<IActionResult> GetAdditionalImages(int id)
+        {
+            var images = await _productImageRepository.GetAdditionalProductImagesByProductIdAsync(id);
+            return Ok(images);
+        }
+        [AllowAnonymous]
+        [HttpGet("tags/{id:int}")]
+        public async Task<IActionResult> GetProductTags(int id)
+        {
+            var tags = await _productTagRepository.GetProductTagNamesByProductIdAsync(id);
+            return Ok(tags);
         }
     }
 }

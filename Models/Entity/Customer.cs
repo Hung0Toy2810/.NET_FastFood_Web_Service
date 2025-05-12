@@ -31,5 +31,7 @@ namespace LapTrinhWindows.Models
         public int Points { get; set; } = 0;
 
         public virtual ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
+        //InvoiceStatusHistories
+        public virtual ICollection<InvoiceStatusHistory> InvoiceStatusHistories { get; set; } = new List<InvoiceStatusHistory>();
     }
 }

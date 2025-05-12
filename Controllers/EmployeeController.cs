@@ -1,6 +1,7 @@
 using LapTrinhWindows.Models.dto.EmployeeDTO;
-
 using LapTrinhWindows.Services;
+using LapTrinhWindows.Models.dto.CustomerDTO;
+using LapTrinhWindows.Models.dto;
 namespace LapTrinhWindows.Controllers
 {
     [ApiController]
@@ -9,8 +10,10 @@ namespace LapTrinhWindows.Controllers
     {
         private readonly IEmployeeService _employeeService;
         private readonly IEmployeeLoginService _employeeLoginService;
-        public EmployeeController(IEmployeeService employeeService, IEmployeeLoginService employeeLoginService)
+        private readonly IJwtTokenService _jwtTokenService;
+        public EmployeeController(IEmployeeService employeeService, IEmployeeLoginService employeeLoginService, IJwtTokenService jwtTokenService)
         {
+            _jwtTokenService = jwtTokenService ?? throw new ArgumentNullException(nameof(jwtTokenService));
             _employeeService = employeeService ?? throw new ArgumentNullException(nameof(employeeService));
             _employeeLoginService = employeeLoginService ?? throw new ArgumentNullException(nameof(employeeLoginService));
         }
@@ -71,6 +74,23 @@ namespace LapTrinhWindows.Controllers
                 return NotFound("Employee not found");
 
             return Ok(profile);
+        }
+        [AllowAnonymous]
+        [HttpPost("newToken")]
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
+        {
+            if (string.IsNullOrEmpty(request.RefreshToken))
+                return BadRequest("Refresh token is required");
+
+            var newTokens = await _jwtTokenService.RefreshTokenAsync(request.RefreshToken);
+            if (newTokens.AccessToken == null || newTokens.RefreshToken == null)
+                return Unauthorized("Invalid refresh token");
+
+            return Ok(new
+            {
+                token = newTokens.AccessToken,
+                refreshToken = newTokens.RefreshToken
+            });
         }
     } 
 }

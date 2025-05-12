@@ -18,7 +18,9 @@ namespace LapTrinhWindows.Models
         [Required]
         [Range(0, int.MaxValue)]
         public int AvailableQuantity { get; set; }
-        // invoice detail
+        
         public virtual ICollection<InvoiceDetail> InvoiceDetails { get; set; } = new List<InvoiceDetail>(); 
+        
+        public virtual ICollection<PointRedemption> PointRedemptions { get; set; } = new List<PointRedemption>();
     }
 }

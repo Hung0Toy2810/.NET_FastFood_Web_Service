@@ -11,6 +11,10 @@ namespace LapTrinhWindows.Models
 
         [ForeignKey("SKU")]
         public virtual Variant Variant { get; set; } = null!;
+        [Required]
+        public int BatchID { get; set; }
+        [ForeignKey("BatchID")]
+        public virtual Batch Batch { get; set; } = null!;
 
         [Required]
         [MaxLength(100)]

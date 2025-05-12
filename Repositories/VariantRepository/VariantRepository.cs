@@ -9,6 +9,8 @@ namespace LapTrinhWindows.Repositories.VariantRepository
         Task<Variant?> GetVariantBySkuAsync(string sku);
         // get variant by id
         Task<Variant?> GetVariantByIdAsync(int variantId);
+        Task<Dictionary<string, Variant>> GetVariantsBySkusAsync(IEnumerable<string> skus);
+        Task UpdateVariantAsync(Variant variant);
         
     }
     public class VariantRepository : IVariantRepository
@@ -71,6 +73,18 @@ namespace LapTrinhWindows.Repositories.VariantRepository
                 .Include(v => v.VariantAttributes)
                 .ThenInclude(va => va.AttributeValue)
                 .FirstOrDefaultAsync(v => v.VariantID == variantId);
+        }
+        public async Task<Dictionary<string, Variant>> GetVariantsBySkusAsync(IEnumerable<string> skus)
+        {
+            return await _context.Variants
+                .Include(v => v.Product)
+                .Where(v => skus.Contains(v.SKU))
+                .ToDictionaryAsync(v => v.SKU, v => v);
+        }
+        public async Task UpdateVariantAsync(Variant variant)
+        {
+            _context.Variants.Update(variant);
+            await _context.SaveChangesAsync();
         }
     }
 }

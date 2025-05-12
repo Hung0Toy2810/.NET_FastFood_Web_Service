@@ -23,6 +23,8 @@ namespace LapTrinhWindows.Repositories.EmployeeRepository
         // change avtkey
         Task UpdateEmployeeAvtKeyAsync(Guid employeeId, string newAvtKey);
         Task<Employee?> GetEmployeeByEmailNumberAsync(string email);
+        //.ExistsAsync
+        Task<bool> ExistsAsync(Guid employeeId);
 
     }
     public class EmployeeRepository : IEmployeeRepository
@@ -247,6 +249,11 @@ namespace LapTrinhWindows.Repositories.EmployeeRepository
             return await _context.Employees
                 .Include(e => e.EmployeeRole)
                 .FirstOrDefaultAsync(e => e.Email == email);
+        }
+        public async Task<bool> ExistsAsync(Guid employeeId)
+        {
+            if (employeeId == Guid.Empty) throw new ArgumentException("ID cannot be empty.", nameof(employeeId));
+            return await _context.Employees.AnyAsync(e => e.EmployeeID == employeeId);
         }
     }
 }

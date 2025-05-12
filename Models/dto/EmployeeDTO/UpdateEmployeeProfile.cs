@@ -13,7 +13,6 @@ namespace LapTrinhWindows.Models.dto.EmployeeDTO
         [Required]
         [MaxLength(100)]
         public string PhoneNumber { get; set; } = string.Empty;
-        // email
         [Required]
         [MaxLength(100)]
         [EmailAddress]

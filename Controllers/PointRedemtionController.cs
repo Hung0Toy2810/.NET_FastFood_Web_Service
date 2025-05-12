@@ -1,60 +1,74 @@
-using Microsoft.AspNetCore.Mvc;
-using LapTrinhWindows.Services;
 using LapTrinhWindows.Models.dto;
-using System.Threading.Tasks;
+using LapTrinhWindows.Services;
+using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace LapTrinhWindows.Controllers
 {
+    [Route("api/PointRedemption")]
     [ApiController]
-    [Route("api/pointredemptions")]
-    public class PointRedemtionController : ControllerBase
+    public class PointRedemptionController : ControllerBase
     {
         private readonly IPointRedemptionService _pointRedemptionService;
+        private readonly ILogger<PointRedemptionController> _logger;
 
-        public PointRedemtionController(IPointRedemptionService pointRedemptionService)
+        public PointRedemptionController(
+            IPointRedemptionService pointRedemptionService,
+            ILogger<PointRedemptionController> logger)
         {
             _pointRedemptionService = pointRedemptionService;
+            _logger = logger;
         }
 
-        // GET: api/pointredemptions?includeInactive=false
         [HttpGet]
-        public async Task<IActionResult> GetAll([FromQuery] bool includeInactive = false)
+        public async Task<ActionResult<List<PointRedemptionDTO>>> GetAll([FromQuery] bool includeInactive = false)
         {
-            List<PointRedemptionDTO> redemptions = await _pointRedemptionService.GetAllAsync(includeInactive);
-            return Ok(redemptions);
+            var pointRedemptions = await _pointRedemptionService.GetAllAsync(includeInactive);
+            return Ok(pointRedemptions);
         }
 
-        // GET: api/pointredemptions/{id}
-        [HttpGet("{id:int}")]
-        public async Task<IActionResult> GetById(int id)
+        [HttpGet("{id}")]
+        public async Task<ActionResult<PointRedemptionDTO>> GetById(int id)
         {
-            PointRedemptionDTO? redemption = await _pointRedemptionService.GetByIdAsync(id);
-            if (redemption == null)
+            var pointRedemption = await _pointRedemptionService.GetByIdAsync(id);
+            if (pointRedemption == null)
             {
-                return NotFound();
+                return NotFound($"Point redemption with ID {id} not found.");
             }
-            return Ok(redemption);
+            return Ok(pointRedemption);
         }
 
-        // POST: api/pointredemptions
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] PointRedemptionDTO dto)
+        public async Task<ActionResult<PointRedemptionDTO>> Create([FromBody] PointRedemptionDTO dto)
         {
-            PointRedemptionDTO created = await _pointRedemptionService.CreateAsync(dto);
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var created = await _pointRedemptionService.CreateAsync(dto);
             return CreatedAtAction(nameof(GetById), new { id = created.PointRedemptionID }, created);
         }
 
-        // PUT: api/pointredemptions/{id}
-        [HttpPut("{id:int}")]
-        public async Task<IActionResult> Update(int id, [FromBody] PointRedemptionDTO dto)
+        [HttpPut("{id}")]
+        public async Task<ActionResult<PointRedemptionDTO>> Update(int id, [FromBody] PointRedemptionDTO dto)
         {
-            PointRedemptionDTO updated = await _pointRedemptionService.UpdateAsync(id, dto);
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            if (id != dto.PointRedemptionID)
+            {
+                return BadRequest("PointRedemptionID does not match ID in URL.");
+            }
+
+            var updated = await _pointRedemptionService.UpdateAsync(id, dto);
             return Ok(updated);
         }
 
-        // DELETE: api/pointredemptions/{id}
-        [HttpDelete("{id:int}")]
+        [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
             await _pointRedemptionService.DeleteAsync(id);

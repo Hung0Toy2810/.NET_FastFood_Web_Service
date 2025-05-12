@@ -43,6 +43,8 @@ namespace LapTrinhWindows.Models
         public bool AccountStatus { get; set; } = true;
 
         public virtual ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
+        //InvoiceStatusHistories
+        public virtual ICollection<InvoiceStatusHistory> InvoiceStatusHistories { get; set; } = new List<InvoiceStatusHistory>();
         
     }
     public enum EmployeeStatus

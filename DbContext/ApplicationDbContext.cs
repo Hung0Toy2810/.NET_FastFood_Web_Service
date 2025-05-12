@@ -8,6 +8,10 @@ namespace LapTrinhWindows.Context
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
         }
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseLazyLoadingProxies();
+        }
 
         public DbSet<Customer> Customers { get; set; }
         public DbSet<Employee> Employees { get; set; }
@@ -153,15 +157,41 @@ namespace LapTrinhWindows.Context
                 .HasForeignKey(b => b.SKU)
                 .HasPrincipalKey(v => v.SKU)
                 .OnDelete(DeleteBehavior.Restrict);
-            // InvoiceDetail 1-n Variant
-            modelBuilder.Entity<InvoiceDetail>()
-                .HasOne(d => d.Variant)
-                .WithMany(v => v.InvoiceDetails)
-                .HasForeignKey(d => d.SKU)
-                .HasPrincipalKey(v => v.SKU)  
+            // PointRedemption 1-n Batch
+            modelBuilder.Entity<PointRedemption>()
+                .HasOne(pr => pr.Batch)
+                .WithMany(b => b.PointRedemptions)
+                .HasForeignKey(pr => pr.BatchID)
                 .OnDelete(DeleteBehavior.Restrict);
-
+            // Batch 1-n InvoiceDetail
+            modelBuilder.Entity<InvoiceDetail>()
+                .HasOne(id => id.Batch)
+                .WithMany(b => b.InvoiceDetails)
+                .HasForeignKey(id => id.BatchID)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<InvoiceDetail>()
+                .HasOne(id => id.Variant)
+                .WithMany(v => v.InvoiceDetails)
+                .HasForeignKey(id => id.SKU)
+                .HasPrincipalKey(v => v.SKU)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<InvoiceStatusHistory>()
+                .HasOne(ish => ish.Invoice)
+                .WithMany(i => i.InvoiceStatusHistories)
+                .HasForeignKey(ish => ish.InvoiceID)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<InvoiceStatusHistory>()
+                .HasOne(ish => ish.Employee)
+                .WithMany(e => e.InvoiceStatusHistories)
+                .HasForeignKey(ish => ish.EmployeeID)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<InvoiceStatusHistory>()
+                .HasOne(ish => ish.Customer)
+                .WithMany(c => c.InvoiceStatusHistories)
+                .HasForeignKey(ish => ish.CustomerID)
+                .OnDelete(DeleteBehavior.Restrict);
             
+                
             // Indexes for foreign keys and unique constraints
             modelBuilder.Entity<Employee>().HasIndex(e => e.RoleID);
             modelBuilder.Entity<Invoice>().HasIndex(i => i.CashierStaff);
@@ -190,7 +220,6 @@ namespace LapTrinhWindows.Context
             modelBuilder.Entity<Invoice>().HasIndex(i => i.CreateAt);
             modelBuilder.Entity<ProductImage>().HasIndex(pi => pi.ProductID);
             modelBuilder.Entity<PointRedemption>().HasIndex(pr => pr.Status);
-            modelBuilder.Entity<Product>().HasIndex(p => p.ProductName).IsUnique();
             modelBuilder.Entity<Variant>().HasIndex(v => v.SKU).IsUnique();
             modelBuilder.Entity<VariantAttribute>().HasKey(va => new { va.VariantID, va.AttributeValueID });
             modelBuilder.Entity<VariantAttribute>().HasIndex(va => new { va.VariantID, va.AttributeValueID });

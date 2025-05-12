@@ -27,5 +27,8 @@ namespace LapTrinhWindows.Models.dto
 
         [Required]
         public PointRedemptionStatus Status { get; set; }
+        [Required]
+        public int BatchID { get; set; }
+        
     }
 }

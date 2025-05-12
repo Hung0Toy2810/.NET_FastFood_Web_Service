@@ -11,7 +11,7 @@ namespace LapTrinhWindows.Models
         [ForeignKey("CashierStaff")]
         public virtual Employee? Employee { get; set; }
 
-        public Guid? CustomerID { get; set; } // Nullable to allow anonymous purchases
+        public Guid? CustomerID { get; set; } 
 
         [ForeignKey("CustomerID")]
         public virtual Customer? Customer { get; set; }
@@ -41,7 +41,6 @@ namespace LapTrinhWindows.Models
         [Required]
         public OrderType OrderType { get; set; }
         [Required]
-        //IsAnonymous
         public bool IsAnonymous { get; set; }
 
         [MaxLength(1000)]
@@ -51,7 +50,7 @@ namespace LapTrinhWindows.Models
         public int Star { get; set; }
 
         public virtual ICollection<InvoiceDetail> InvoiceDetails { get; set; } = new List<InvoiceDetail>();
-        //InvoiceStatusHistories
+        
         public virtual ICollection<InvoiceStatusHistory> InvoiceStatusHistories { get; set; } = new List<InvoiceStatusHistory>();
     }
 

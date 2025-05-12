@@ -1,3 +1,4 @@
+using LapTrinhWindows.Models.DTO;
 namespace LapTrinhWindows.Repositories.ProductImageRepository
 {
     public interface IProductImageRepository
@@ -8,6 +9,7 @@ namespace LapTrinhWindows.Repositories.ProductImageRepository
         Task<Models.ProductImage?> GetProductImageByIdAsync(int productImageId);
         Task<List<Models.ProductImage>> GetImagesByProductIdAsync(int productId);
         Task DeleteImagesByProductIdAsync(int productId);
+        Task<List<ProductImageDTO>> GetAdditionalProductImagesByProductIdAsync(int productId);
     }
     public class ProductImageRepository : IProductImageRepository
     {
@@ -57,6 +59,17 @@ namespace LapTrinhWindows.Repositories.ProductImageRepository
                 .ToListAsync();
             _context.ProductImages.RemoveRange(images);
             await _context.SaveChangesAsync();
+        }
+        public Task<List<ProductImageDTO>> GetAdditionalProductImagesByProductIdAsync(int productId)
+        {
+            return _context.ProductImages
+                .Where(pi => pi.ProductID == productId)
+                .Select(pi => new ProductImageDTO
+                {
+                    ImageUrl = pi.ImageUrl,
+                    OrdinalNumbers = pi.OrdinalNumbers,
+                })
+                .ToListAsync();
         }
     }
 }

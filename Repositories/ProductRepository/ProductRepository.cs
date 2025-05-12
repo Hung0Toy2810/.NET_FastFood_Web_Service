@@ -16,6 +16,8 @@ namespace LapTrinhWindows.Repositories.ProductRepository
         Task<bool> IsImageKeyUsedByOtherImagesAsync(string imageKey, int excludeProductId);
         Task EnsureNoRelatedInvoicesAsync(int productId);
         Task EnsureNoRelatedBatchesAsync(int productId);
+        Task<List<Product>> SearchProduct(string searchString);
+        
 
     }
 
@@ -425,6 +427,50 @@ namespace LapTrinhWindows.Repositories.ProductRepository
                 Console.WriteLine("Cannot delete product ID {ProductId} because it has related batches.", productId);
                 throw new InvalidOperationException($"Cannot delete product ID {productId} because it has related batches.");
             }
+        }
+        public async Task<List<Product>> SearchProduct(string searchString)
+        {
+            // Chuẩn hóa chuỗi tìm kiếm
+            searchString = searchString?.Trim().ToLower() ?? string.Empty;
+
+            // Tạo query cơ bản (không cần Include vì sử dụng lazy loading)
+            var query = _context.Products.AsQueryable();
+
+            // Nếu chuỗi tìm kiếm không rỗng, áp dụng điều kiện tìm kiếm
+            if (!string.IsNullOrWhiteSpace(searchString))
+            {
+                // Phân tách từ khóa
+                var keywords = searchString.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                // Xây dựng điều kiện tìm kiếm
+                foreach (var keyword in keywords)
+                {
+                    string currentKeyword = keyword;
+                    query = query.Where(p =>
+                        p.ProductName.ToLower().Contains(currentKeyword) ||
+                        p.Category.CategoryName.ToLower().Contains(currentKeyword) ||
+                        p.ProductTags.Any(pt => pt.Tag.TagName.ToLower().Contains(currentKeyword))
+                    );
+                }
+
+                // Sắp xếp theo mức độ liên quan
+                query = query.OrderByDescending(p =>
+                    (p.ProductName.ToLower().Contains(searchString) ? 3 : 0) + // Ưu tiên khớp chính xác ProductName
+                    (p.Category.CategoryName.ToLower().Contains(searchString) ? 2 : 0) + // Ưu tiên CategoryName
+                    p.ProductTags.Count(pt => pt.Tag.TagName.ToLower().Contains(searchString)) // Số lượng Tag khớp
+                );
+            }
+            else
+            {
+                // Nếu không có từ khóa, sắp xếp theo ProductID (hoặc tiêu chí khác)
+                query = query.OrderBy(p => p.ProductID);
+            }
+
+            // Chỉ lấy 10 sản phẩm đầu tiên
+            query = query.Take(10);
+
+            // Thực thi query và trả về kết quả
+            return await query.ToListAsync();
         }
     }
 }

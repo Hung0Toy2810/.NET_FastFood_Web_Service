@@ -38,17 +38,13 @@ namespace LapTrinhWindows.Middleware
 
             int requestLimit = _config.GetValue<int>("RateLimit:RequestsPerMinute", 100);
 
-            // Chặn các IP vượt quá giới hạn yêu cầu
             if (count > requestLimit)
             {
                 _logger.LogWarning("IP {ClientIp} exceeded rate limit: {Count} requests", clientIp, count);
 
-                // Ngừng kết nối và không tiếp tục xử lý request
-                context.Response.StatusCode = 403;  // Forbidden
+                context.Response.StatusCode = 403;  
                 context.Response.ContentType = "text/plain";
                 await context.Response.WriteAsync("Rate limit exceeded. You have been blocked.");
-
-                // Kết thúc middleware và không gửi yêu cầu đến controller
                 return;
             }
 

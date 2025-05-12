@@ -65,7 +65,7 @@ namespace LapTrinhWindows.DTO
     {
         public int InvoiceDetailID { get; set; }
         public string SKU { get; set; } = string.Empty;
-        public int? BatchID { get; set; } // Nullable to match InvoiceDetail model
+        public int? BatchID { get; set; } 
         public int Quantity { get; set; }
         public double Total { get; set; }
         public bool IsPointRedemption { get; set; }
@@ -74,6 +74,8 @@ namespace LapTrinhWindows.DTO
 
     public class UpdateInvoiceDTO
     {
+        [Required]
+        public int InvoiceId { get; set; }
         [MaxLength(500)]
         public string? DeliveryAddress { get; set; }
         public InvoiceStatus? Status { get; set; }
@@ -96,6 +98,8 @@ namespace LapTrinhWindows.DTO
     public class FeedbackDTO
     {
         [Required]
+        public int InvoiceId { get; set; }
+        [Required]
         [MaxLength(1000)]
         public string Feedback { get; set; } = string.Empty;
         [Required]
@@ -115,5 +119,18 @@ namespace LapTrinhWindows.DTO
         public int TotalInvoices { get; set; }
         public double TotalSpent { get; set; }
         public int TotalPoints { get; set; }
+    }
+    public class ChangeDeliveryAddressDTO
+    {
+        [Required]
+        public int InvoiceId { get; set; }
+        [Required]
+        [MaxLength(500)]
+        public string DeliveryAddress { get; set; } = string.Empty;
+    }
+    public class InvoiceIdRequestDTO
+    {
+        [Required]
+        public int InvoiceId { get; set; }
     }
 }

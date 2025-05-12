@@ -77,7 +77,7 @@ namespace LapTrinhWindows.Migrations
                     b.Property<int>("AvailableQuantity")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("ExpirationDate")
+                    b.Property<DateTime?>("ExpirationDate")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("ProductionDate")
@@ -352,28 +352,41 @@ namespace LapTrinhWindows.Migrations
 
             modelBuilder.Entity("LapTrinhWindows.Models.InvoiceStatusHistory", b =>
                 {
-                    b.Property<int>("HistoryID")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("HistoryID"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("ChangedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid?>("ChangedBy")
+                    b.Property<Guid>("CustomerID")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmployeeID")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FieldChanged")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("InvoiceID")
                         .HasColumnType("int");
 
-                    b.Property<int>("NewStatus")
-                        .HasColumnType("int");
+                    b.Property<string>("NewStatus")
+                        .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("OldStatus")
-                        .HasColumnType("int");
+                    b.Property<string>("OldStatus")
+                        .HasColumnType("nvarchar(max)");
 
-                    b.HasKey("HistoryID");
+                    b.Property<string>("Reason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerID");
+
+                    b.HasIndex("EmployeeID");
 
                     b.HasIndex("InvoiceID");
 
@@ -389,6 +402,9 @@ namespace LapTrinhWindows.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PointRedemptionID"));
 
                     b.Property<int>("AvailableQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BatchID")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("EndDate")
@@ -413,6 +429,8 @@ namespace LapTrinhWindows.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("PointRedemptionID");
+
+                    b.HasIndex("BatchID");
 
                     b.HasIndex("SKU");
 
@@ -657,7 +675,7 @@ namespace LapTrinhWindows.Migrations
                     b.HasOne("LapTrinhWindows.Models.Batch", "Batch")
                         .WithMany("InvoiceDetails")
                         .HasForeignKey("BatchID")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("LapTrinhWindows.Models.Invoice", "Invoice")
@@ -689,23 +707,47 @@ namespace LapTrinhWindows.Migrations
 
             modelBuilder.Entity("LapTrinhWindows.Models.InvoiceStatusHistory", b =>
                 {
+                    b.HasOne("LapTrinhWindows.Models.Customer", "Customer")
+                        .WithMany("InvoiceStatusHistories")
+                        .HasForeignKey("CustomerID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LapTrinhWindows.Models.Employee", "Employee")
+                        .WithMany("InvoiceStatusHistories")
+                        .HasForeignKey("EmployeeID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("LapTrinhWindows.Models.Invoice", "Invoice")
                         .WithMany("InvoiceStatusHistories")
                         .HasForeignKey("InvoiceID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Customer");
+
+                    b.Navigation("Employee");
+
                     b.Navigation("Invoice");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.PointRedemption", b =>
                 {
+                    b.HasOne("LapTrinhWindows.Models.Batch", "Batch")
+                        .WithMany("PointRedemptions")
+                        .HasForeignKey("BatchID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("LapTrinhWindows.Models.Variant", "Variant")
                         .WithMany("PointRedemptions")
                         .HasForeignKey("SKU")
                         .HasPrincipalKey("SKU")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Batch");
 
                     b.Navigation("Variant");
                 });
@@ -804,6 +846,8 @@ namespace LapTrinhWindows.Migrations
             modelBuilder.Entity("LapTrinhWindows.Models.Batch", b =>
                 {
                     b.Navigation("InvoiceDetails");
+
+                    b.Navigation("PointRedemptions");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.Category", b =>
@@ -813,11 +857,15 @@ namespace LapTrinhWindows.Migrations
 
             modelBuilder.Entity("LapTrinhWindows.Models.Customer", b =>
                 {
+                    b.Navigation("InvoiceStatusHistories");
+
                     b.Navigation("Invoices");
                 });
 
             modelBuilder.Entity("LapTrinhWindows.Models.Employee", b =>
                 {
+                    b.Navigation("InvoiceStatusHistories");
+
                     b.Navigation("Invoices");
                 });
 

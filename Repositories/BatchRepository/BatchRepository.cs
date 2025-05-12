@@ -9,12 +9,13 @@ namespace LapTrinhWindows.Repositories.BatchRepository
 {
     public interface IBatchRepository
     {
-        // Lấy danh sách lô hàng theo SKU
         Task<List<Batch>> GetBatchesBySkuAsync(string sku);
-        // Lấy lô hàng theo ID
+        
         Task<Batch?> GetBatchByIdAsync(int batchId);
-        // Thêm lô hàng mới
+        
         Task AddBatchAsync(Batch batch);
+        Task<Dictionary<int, Batch>> GetBatchesByIdsAsync(IEnumerable<int> batchIds);
+        Task UpdateBatchAsync(Batch batch);
     }
 
     public class BatchRepository : IBatchRepository
@@ -26,7 +27,6 @@ namespace LapTrinhWindows.Repositories.BatchRepository
             _context = context ?? throw new ArgumentNullException(nameof(context));
         }
 
-        // Lấy tất cả lô hàng liên quan đến SKU
         public async Task<List<Batch>> GetBatchesBySkuAsync(string sku)
         {
             if (string.IsNullOrWhiteSpace(sku))
@@ -39,14 +39,14 @@ namespace LapTrinhWindows.Repositories.BatchRepository
                 .ToListAsync();
         }
 
-        // Lấy lô hàng theo BatchID
+        
         public async Task<Batch?> GetBatchByIdAsync(int batchId)
         {
             return await _context.Batches
                 .FirstOrDefaultAsync(b => b.BatchID == batchId);
         }
 
-        // Thêm lô hàng mới vào cơ sở dữ liệu
+        
         public async Task AddBatchAsync(Batch batch)
         {
             if (batch == null)
@@ -55,6 +55,17 @@ namespace LapTrinhWindows.Repositories.BatchRepository
             }
 
             await _context.Batches.AddAsync(batch);
+            await _context.SaveChangesAsync();
+        }
+        public async Task<Dictionary<int, Batch>> GetBatchesByIdsAsync(IEnumerable<int> batchIds)
+        {
+            return await _context.Batches
+                .Where(b => batchIds.Contains(b.BatchID))
+                .ToDictionaryAsync(b => b.BatchID, b => b);
+        }
+        public async Task UpdateBatchAsync(Batch batch)
+        {
+            _context.Batches.Update(batch);
             await _context.SaveChangesAsync();
         }
     }

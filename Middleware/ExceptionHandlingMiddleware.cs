@@ -62,11 +62,9 @@ namespace LapTrinhWindows.Middleware
                 case UnauthorizedAccessException unauthorizedEx:
                     HandleUnauthorizedAccessException(problemDetails, unauthorizedEx);
                     break;
-                // 🟢 Đặt lớp con trước
                 case SecurityTokenExpiredException securityTokenExpiredEx:
                     HandleSecurityTokenExpiredException(problemDetails, securityTokenExpiredEx);
                     break;
-                // 🟢 Sau đó mới đến lớp cha
                 case SecurityTokenException securityTokenEx:
                     HandleSecurityTokenException(problemDetails, securityTokenEx);
                     break;
@@ -92,9 +90,6 @@ namespace LapTrinhWindows.Middleware
                     HandleDefaultException(problemDetails, exception);
                     break;
             }
-
-
-            // Thêm thông tin bổ sung trong môi trường development
             if (_env.IsDevelopment())
             {
                 if (exception.InnerException != null)
@@ -112,7 +107,7 @@ namespace LapTrinhWindows.Middleware
             context.Response.StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
             context.Response.ContentType = "application/problem+json";
 
-            // Serialize và trả về phản hồi
+            
             var jsonOptions = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -168,7 +163,7 @@ namespace LapTrinhWindows.Middleware
             problemDetails.Type = "https://tools.ietf.org/html/rfc6750#section-3.1";
             problemDetails.Detail = "The token has expired.";
         }
-        //SecurityTokenException ex
+        //SecurityTokenException
         private void HandleSecurityTokenException(ProblemDetails problemDetails, SecurityTokenException ex)
         {
             problemDetails.Status = StatusCodes.Status401Unauthorized;
